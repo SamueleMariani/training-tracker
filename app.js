@@ -327,7 +327,39 @@ function loadLocalState() {
   const cachedUsers = localStorage.getItem("tt_registered_users");
   if (cachedUsers) {
     try {
-      registeredUsers = { ...registeredUsers, ...JSON.parse(cachedUsers) };
+      const parsed = JSON.parse(cachedUsers);
+      registeredUsers = { ...registeredUsers, ...parsed };
+
+      // Deduplica automatica per Samuele e Coach da cache locale
+      Object.keys(registeredUsers).forEach(key => {
+        const u = registeredUsers[key];
+        if (!u) return;
+
+        const isSamueleDuplicate = (key !== "samuele_admin") && (
+          (u.email && u.email.toLowerCase().includes("samuele")) ||
+          (u.name && u.name.toLowerCase().includes("samuele"))
+        );
+
+        if (isSamueleDuplicate) {
+          registeredUsers.samuele_admin.uid = key;
+          if (u.name) registeredUsers.samuele_admin.name = u.name;
+          if (u.email) registeredUsers.samuele_admin.email = u.email;
+          delete registeredUsers[key];
+        }
+
+        const isCoachDuplicate = (key !== "allenatore") && (
+          (coachInfo && coachInfo.uid && key === coachInfo.uid) ||
+          (u.role === "allenatore" && u.email && u.email.includes("allenatore"))
+        );
+
+        if (isCoachDuplicate) {
+          registeredUsers.allenatore.uid = key;
+          if (u.name) registeredUsers.allenatore.name = u.name;
+          delete registeredUsers[key];
+        }
+      });
+
+      saveLocalUsers();
     } catch (e) {}
   }
 
@@ -567,12 +599,22 @@ function setupAuthListener() {
       // Determinazione ruolo
       const emailLower = (user.email || "").toLowerCase();
       
-      if (emailLower.includes("samuele") || emailLower === "admin@trainingtracker.it") {
+      if (emailLower.includes("samuele") || emailLower === "admin@trainingtracker.it" || (user.displayName && user.displayName.toLowerCase().includes("samuele"))) {
         appRole = "admin";
         activeAthleteId = "samuele_admin";
+        registeredUsers.samuele_admin.uid = user.uid;
+        registeredUsers.samuele_admin.name = user.displayName || "Samuele Mariani";
+        registeredUsers.samuele_admin.email = user.email;
+        delete registeredUsers[user.uid];
+        saveLocalUsers();
       } else if (coachInfo && coachInfo.claimed && (coachInfo.uid === user.uid || coachInfo.email === user.email)) {
         appRole = "allenatore";
-        activeAthleteId = user.uid;
+        activeAthleteId = "allenatore";
+        registeredUsers.allenatore.uid = user.uid;
+        registeredUsers.allenatore.name = user.displayName || coachInfo.name || "Allenatore";
+        registeredUsers.allenatore.email = user.email;
+        delete registeredUsers[user.uid];
+        saveLocalUsers();
       } else if (!coachInfo.claimed) {
         // Se non c'è ancora un allenatore e l'utente ha scelto allenatore o email coerente
         const savedRole = localStorage.getItem(`tt_user_role_${user.uid}`);
@@ -581,22 +623,30 @@ function setupAuthListener() {
         } else {
           appRole = "atleta";
           activeAthleteId = user.uid;
+          if (!registeredUsers[user.uid]) {
+            registeredUsers[user.uid] = {
+              id: user.uid,
+              name: user.displayName || user.email.split("@")[0],
+              email: user.email,
+              role: "atleta",
+              avatar: "🏃"
+            };
+            saveLocalUsers();
+          }
         }
       } else {
         appRole = "atleta";
         activeAthleteId = user.uid;
-      }
-
-      // Aggiungi utente loggato al roster se non presente
-      if (!registeredUsers[user.uid]) {
-        registeredUsers[user.uid] = {
-          id: user.uid,
-          name: user.displayName || user.email.split("@")[0],
-          email: user.email,
-          role: appRole,
-          avatar: appRole === "admin" ? "👑" : (appRole === "allenatore" ? "📋" : "🏃")
-        };
-        saveLocalUsers();
+        if (!registeredUsers[user.uid]) {
+          registeredUsers[user.uid] = {
+            id: user.uid,
+            name: user.displayName || user.email.split("@")[0],
+            email: user.email,
+            role: "atleta",
+            avatar: "🏃"
+          };
+          saveLocalUsers();
+        }
       }
 
       // Mostra l'applicazione completa
@@ -665,17 +715,37 @@ function updateAthleteDropdowns() {
 
   athleteSelectDropdown.innerHTML = "";
 
-  // Roster pulito per il visualizzatore: Allenatore, Samuele (Admin & Atleta), e gli atleti registrati
-  const coachLabel = (coachInfo && coachInfo.name) ? `📋 ${coachInfo.name} (Coach)` : `📋 Allenatore (Dati da Excel)`;
-  
+  // 1. Allenatore (Unico coach)
+  const coachName = (coachInfo && coachInfo.name) ? coachInfo.name : (registeredUsers.allenatore && registeredUsers.allenatore.name ? registeredUsers.allenatore.name : "Allenatore");
+  const coachLabel = (coachInfo && coachInfo.claimed) ? `📋 ${coachName} (Coach)` : `📋 Allenatore (Dati da Excel)`;
+
+  // 2. Samuele (Admin & Atleta - Unico)
+  const samueleUser = registeredUsers.samuele_admin || {};
+  const samueleName = samueleUser.name || "Samuele Mariani";
+  const samueleLabel = `👑 ${samueleName} (Admin & Atleta)`;
+
   const entries = [
     { id: "allenatore", label: coachLabel },
-    { id: "samuele_admin", label: "👑 Samuele (Admin & Atleta)" }
+    { id: "samuele_admin", label: samueleLabel }
   ];
 
-  // Aggiungi atleti reali registrati
+  const seenIds = new Set(["allenatore", "samuele_admin"]);
+  if (coachInfo && coachInfo.uid) seenIds.add(coachInfo.uid);
+  if (samueleUser.uid) seenIds.add(samueleUser.uid);
+
+  // 3. Aggiungi esclusivamente atleti reali registrati aggiuntivi
   Object.values(registeredUsers).forEach(u => {
-    if (u.id !== "allenatore" && u.id !== "samuele_admin") {
+    if (!u || !u.id) return;
+    const isSamuele = u.id === "samuele_admin" ||
+                      (samueleUser.uid && u.id === samueleUser.uid) ||
+                      (u.email && u.email.toLowerCase().includes("samuele")) ||
+                      (u.name && u.name.toLowerCase().includes("samuele"));
+    const isCoach = u.id === "allenatore" ||
+                    (coachInfo && coachInfo.uid && u.id === coachInfo.uid) ||
+                    (u.email && u.email.toLowerCase().includes("allenatore"));
+
+    if (!isSamuele && !isCoach && !seenIds.has(u.id)) {
+      seenIds.add(u.id);
       entries.push({
         id: u.id,
         label: `🏃 ${u.name} (Atleta)`
@@ -690,6 +760,9 @@ function updateAthleteDropdowns() {
     athleteSelectDropdown.appendChild(opt1);
   });
 
+  if (activeAthleteId === (samueleUser.uid)) {
+    activeAthleteId = "samuele_admin";
+  }
   athleteSelectDropdown.value = activeAthleteId;
   updateFormAuthorUI();
 }
@@ -1471,13 +1544,47 @@ function renderTeamOverview() {
   teamRosterGrid.innerHTML = "";
   teamComparisonTbody.innerHTML = "";
 
-  const usersList = Object.values(registeredUsers);
+  const usersList = [];
+  const seenRosterIds = new Set();
+
+  if (registeredUsers.allenatore) {
+    usersList.push(registeredUsers.allenatore);
+    seenRosterIds.add("allenatore");
+    if (coachInfo && coachInfo.uid) seenRosterIds.add(coachInfo.uid);
+  }
+
+  if (registeredUsers.samuele_admin) {
+    usersList.push(registeredUsers.samuele_admin);
+    seenRosterIds.add("samuele_admin");
+    if (registeredUsers.samuele_admin.uid) seenRosterIds.add(registeredUsers.samuele_admin.uid);
+  }
+
+  Object.values(registeredUsers).forEach(u => {
+    if (!u || !u.id) return;
+    const isSamuele = u.id === "samuele_admin" ||
+                      (registeredUsers.samuele_admin && registeredUsers.samuele_admin.uid === u.id) ||
+                      (u.email && u.email.toLowerCase().includes("samuele")) ||
+                      (u.name && u.name.toLowerCase().includes("samuele"));
+    const isCoach = u.id === "allenatore" ||
+                    (coachInfo && coachInfo.uid === u.id) ||
+                    (u.email && u.email.toLowerCase().includes("allenatore"));
+
+    if (!isSamuele && !isCoach && !seenRosterIds.has(u.id)) {
+      seenRosterIds.add(u.id);
+      usersList.push(u);
+    }
+  });
+
   const currentMonthPrefix = formatDateToISO(currentCalendarMonth).substring(0, 7);
 
   usersList.forEach(u => {
     const userWorkouts = allWorkouts.filter(w => {
       if (u.id === "allenatore" || (coachInfo && coachInfo.uid && u.id === coachInfo.uid)) {
         return w.userId === "allenatore" || (coachInfo && w.userId === coachInfo.uid) || (w.userEmail && w.userEmail.includes("allenatore"));
+      }
+      if (u.id === "samuele_admin" || (registeredUsers.samuele_admin && registeredUsers.samuele_admin.uid && u.id === registeredUsers.samuele_admin.uid)) {
+        const samUid = registeredUsers.samuele_admin && registeredUsers.samuele_admin.uid;
+        return w.userId === "samuele_admin" || (samUid && w.userId === samUid) || (w.userEmail && w.userEmail.toLowerCase().includes("samuele"));
       }
       return w.userId === u.id;
     });
