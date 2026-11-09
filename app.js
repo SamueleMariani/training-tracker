@@ -691,9 +691,6 @@ function renderAuthUI(user) {
     
     // Check if user signed in with email/password (show Change Password button)
     const isEmailUser = user.providerData && user.providerData.some(p => p.providerId === "password");
-    const changePwBtn = isEmailUser 
-      ? `<button id="btnChangePassword" class="btn btn-accent btn-sm" title="Cambia Password">🔑 Cambio PW</button>` 
-      : "";
 
     profile.innerHTML = `
       <img src="${avatarSrc}" class="user-avatar" alt="Avatar" />
@@ -702,7 +699,7 @@ function renderAuthUI(user) {
         <span class="user-role-tag">${appRole.toUpperCase()}</span>
       </div>
       <div class="user-actions">
-        ${changePwBtn}
+        <button id="btnChangePassword" class="btn btn-accent btn-sm" title="Cambia Password">🔑</button>
         <button id="btnLogout" class="btn btn-secondary btn-sm" title="Disconnettiti">Esci</button>
       </div>
     `;
@@ -713,12 +710,13 @@ function renderAuthUI(user) {
       showToast("Disconnessione effettuata", "success");
     });
 
-    if (isEmailUser) {
-      const btnChangePw = document.getElementById("btnChangePassword");
-      if (btnChangePw) {
-        btnChangePw.addEventListener("click", () => openChangePasswordModal());
+    document.getElementById("btnChangePassword").addEventListener("click", () => {
+      if (isEmailUser) {
+        openChangePasswordModal();
+      } else {
+        showToast("Il cambio password è disponibile solo per account con Email e Password, non per accessi Google.", "error");
       }
-    }
+    });
   } else {
     const loginBtn = document.createElement("button");
     loginBtn.className = "btn btn-primary btn-sm";
