@@ -7,6 +7,9 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
   signOut, 
   onAuthStateChanged 
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
@@ -686,13 +689,22 @@ function renderAuthUI(user) {
     profile.className = "user-profile";
     const avatarSrc = user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.uid}`;
     
+    // Check if user signed in with email/password (show Change Password button)
+    const isEmailUser = user.providerData && user.providerData.some(p => p.providerId === "password");
+    const changePwBtn = isEmailUser 
+      ? `<button id="btnChangePassword" class="btn btn-accent btn-sm" title="Cambia Password">🔑 Cambio PW</button>` 
+      : "";
+
     profile.innerHTML = `
       <img src="${avatarSrc}" class="user-avatar" alt="Avatar" />
       <div class="user-meta">
         <span class="user-name">${escapeHtml(user.displayName || user.email.split("@")[0])}</span>
         <span class="user-role-tag">${appRole.toUpperCase()}</span>
       </div>
-      <button id="btnLogout" class="btn btn-secondary btn-sm" title="Disconnettiti">Esci</button>
+      <div class="user-actions">
+        ${changePwBtn}
+        <button id="btnLogout" class="btn btn-secondary btn-sm" title="Disconnettiti">Esci</button>
+      </div>
     `;
     authBox.appendChild(profile);
 
@@ -700,6 +712,13 @@ function renderAuthUI(user) {
       await signOut(auth);
       showToast("Disconnessione effettuata", "success");
     });
+
+    if (isEmailUser) {
+      const btnChangePw = document.getElementById("btnChangePassword");
+      if (btnChangePw) {
+        btnChangePw.addEventListener("click", () => openChangePasswordModal());
+      }
+    }
   } else {
     const loginBtn = document.createElement("button");
     loginBtn.className = "btn btn-primary btn-sm";
@@ -1729,6 +1748,15 @@ emailAuthForm.addEventListener("submit", async (e) => {
         return;
       }
 
+      // Validazione password complessa obbligatoria
+      const pwCheck = validatePassword(password);
+      if (!pwCheck.valid) {
+        const failedRules = pwCheck.rules.filter(r => !r.test).map(r => r.label).join(", ");
+        authErrorMsg.textContent = "La password non è abbastanza sicura. Mancano: " + failedRules;
+        authErrorMsg.classList.remove("hidden");
+        return;
+      }
+
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       const displayName = authDisplayName.value.trim() || email.split("@")[0];
@@ -1822,6 +1850,159 @@ function setupEventListeners() {
 
   filterCategory.addEventListener("change", renderWorkoutsFeed);
   sortOrder.addEventListener("change", renderWorkoutsFeed);
+}
+
+// --- PASSWORD VALIDATION & CHANGE ---
+function validatePassword(password) {
+  const rules = [
+    { id: "length", label: "Almeno 8 caratteri", test: password.length >= 8 },
+    { id: "uppercase", label: "Almeno una lettera maiuscola (A-Z)", test: /[A-Z]/.test(password) },
+    { id: "lowercase", label: "Almeno una lettera minuscola (a-z)", test: /[a-z]/.test(password) },
+    { id: "number", label: "Almeno un numero (0-9)", test: /[0-9]/.test(password) },
+    { id: "special", label: "Almeno un carattere speciale (!@#$%...)", test: /[^A-Za-z0-9]/.test(password) },
+  ];
+  const valid = rules.every(r => r.test);
+  return { valid, rules };
+}
+
+function renderPasswordStrength(containerEl, password) {
+  if (!containerEl) return;
+  if (!password) {
+    containerEl.innerHTML = "";
+    containerEl.classList.add("hidden");
+    return;
+  }
+  const { valid, rules } = validatePassword(password);
+  const passed = rules.filter(r => r.test).length;
+  const total = rules.length;
+  const pct = Math.round((passed / total) * 100);
+
+  let strengthLabel, strengthClass;
+  if (pct <= 20) { strengthLabel = "Molto debole"; strengthClass = "pw-very-weak"; }
+  else if (pct <= 40) { strengthLabel = "Debole"; strengthClass = "pw-weak"; }
+  else if (pct <= 60) { strengthLabel = "Discreta"; strengthClass = "pw-fair"; }
+  else if (pct <= 80) { strengthLabel = "Buona"; strengthClass = "pw-good"; }
+  else { strengthLabel = "Forte 💪"; strengthClass = "pw-strong"; }
+
+  containerEl.classList.remove("hidden");
+  containerEl.innerHTML = `
+    <div class="pw-strength-bar">
+      <div class="pw-strength-fill ${strengthClass}" style="width: ${pct}%"></div>
+    </div>
+    <span class="pw-strength-label ${strengthClass}">${strengthLabel}</span>
+    <ul class="pw-rules-list">
+      ${rules.map(r => `<li class="${r.test ? "pw-rule-pass" : "pw-rule-fail"}">${r.test ? "✅" : "❌"} ${r.label}</li>`).join("")}
+    </ul>
+  `;
+}
+
+// Live strength indicator for registration form
+const authPasswordField = document.getElementById("authPassword");
+const pwStrengthRegister = document.getElementById("pwStrengthRegister");
+if (authPasswordField && pwStrengthRegister) {
+  authPasswordField.addEventListener("input", () => {
+    const isRegister = tabBtnRegister.classList.contains("active");
+    if (isRegister) {
+      renderPasswordStrength(pwStrengthRegister, authPasswordField.value);
+    } else {
+      pwStrengthRegister.innerHTML = "";
+      pwStrengthRegister.classList.add("hidden");
+    }
+  });
+}
+
+// Change Password Modal Logic
+const changePasswordModal = document.getElementById("changePasswordModal");
+const btnCloseChangePw = document.getElementById("btnCloseChangePw");
+const changePwForm = document.getElementById("changePwForm");
+const cpCurrentPw = document.getElementById("cpCurrentPassword");
+const cpNewPw = document.getElementById("cpNewPassword");
+const cpConfirmPw = document.getElementById("cpConfirmPassword");
+const cpErrorMsg = document.getElementById("cpErrorMsg");
+const cpSuccessMsg = document.getElementById("cpSuccessMsg");
+const pwStrengthChange = document.getElementById("pwStrengthChange");
+
+if (cpNewPw && pwStrengthChange) {
+  cpNewPw.addEventListener("input", () => {
+    renderPasswordStrength(pwStrengthChange, cpNewPw.value);
+  });
+}
+
+function openChangePasswordModal() {
+  if (!changePasswordModal) return;
+  changePasswordModal.classList.remove("hidden");
+  cpErrorMsg.classList.add("hidden");
+  cpSuccessMsg.classList.add("hidden");
+  if (changePwForm) changePwForm.reset();
+  if (pwStrengthChange) { pwStrengthChange.innerHTML = ""; pwStrengthChange.classList.add("hidden"); }
+}
+
+function closeChangePasswordModal() {
+  if (!changePasswordModal) return;
+  changePasswordModal.classList.add("hidden");
+}
+
+if (btnCloseChangePw) {
+  btnCloseChangePw.addEventListener("click", closeChangePasswordModal);
+}
+
+if (changePasswordModal) {
+  changePasswordModal.addEventListener("click", (e) => {
+    if (e.target === changePasswordModal) closeChangePasswordModal();
+  });
+}
+
+if (changePwForm) {
+  changePwForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    cpErrorMsg.classList.add("hidden");
+    cpSuccessMsg.classList.add("hidden");
+
+    const currentPw = cpCurrentPw.value;
+    const newPw = cpNewPw.value;
+    const confirmPw = cpConfirmPw.value;
+
+    if (newPw !== confirmPw) {
+      cpErrorMsg.textContent = "Le due nuove password non coincidono.";
+      cpErrorMsg.classList.remove("hidden");
+      return;
+    }
+
+    const { valid, rules } = validatePassword(newPw);
+    if (!valid) {
+      const failedRules = rules.filter(r => !r.test).map(r => r.label).join(", ");
+      cpErrorMsg.textContent = "La nuova password non soddisfa i requisiti: " + failedRules;
+      cpErrorMsg.classList.remove("hidden");
+      return;
+    }
+
+    try {
+      const user = auth.currentUser;
+      const credential = EmailAuthProvider.credential(user.email, currentPw);
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, newPw);
+
+      cpSuccessMsg.textContent = "Password cambiata con successo! ✅";
+      cpSuccessMsg.classList.remove("hidden");
+      changePwForm.reset();
+      if (pwStrengthChange) { pwStrengthChange.innerHTML = ""; pwStrengthChange.classList.add("hidden"); }
+      showToast("Password aggiornata con successo!", "success");
+
+      setTimeout(() => closeChangePasswordModal(), 2000);
+    } catch (error) {
+      console.error("Errore cambio password:", error);
+      let msg = "Errore durante il cambio password.";
+      if (error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
+        msg = "La password attuale inserita non è corretta.";
+      } else if (error.code === "auth/too-many-requests") {
+        msg = "Troppi tentativi. Riprova tra qualche minuto.";
+      } else if (error.code === "auth/requires-recent-login") {
+        msg = "Sessione scaduta. Esci e riaccedi prima di cambiare la password.";
+      }
+      cpErrorMsg.textContent = msg;
+      cpErrorMsg.classList.remove("hidden");
+    }
+  });
 }
 
 // --- UTILITY ---

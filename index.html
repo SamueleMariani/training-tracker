@@ -451,7 +451,8 @@
 
           <div class="form-group">
             <label for="authPassword">Password *</label>
-            <input type="password" id="authPassword" placeholder="Almeno 6 caratteri" required />
+            <input type="password" id="authPassword" placeholder="Min. 8 caratteri, maiuscola, numero, speciale" required />
+            <div id="pwStrengthRegister" class="pw-strength-container hidden"></div>
           </div>
 
           <button type="submit" id="btnSubmitEmailAuth" class="btn btn-primary btn-block">
@@ -473,6 +474,45 @@
           </svg>
           Accedi con Google
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODALE: CAMBIO PASSWORD                    -->
+  <!-- ========================================== -->
+  <div id="changePasswordModal" class="modal-overlay hidden">
+    <div class="modal-content auth-modal-box">
+      <div class="modal-header">
+        <h3>🔑 Cambio Password</h3>
+        <button type="button" id="btnCloseChangePw" class="btn-modal-close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div id="cpErrorMsg" class="auth-error-alert hidden"></div>
+        <div id="cpSuccessMsg" class="auth-success-alert hidden"></div>
+
+        <form id="changePwForm">
+          <div class="form-group">
+            <label for="cpCurrentPassword">Password Attuale *</label>
+            <input type="password" id="cpCurrentPassword" placeholder="Inserisci la tua password attuale" required />
+          </div>
+
+          <div class="form-group">
+            <label for="cpNewPassword">Nuova Password *</label>
+            <input type="password" id="cpNewPassword" placeholder="Min. 8 caratteri, maiuscola, numero, speciale" required />
+            <div id="pwStrengthChange" class="pw-strength-container hidden"></div>
+          </div>
+
+          <div class="form-group">
+            <label for="cpConfirmPassword">Conferma Nuova Password *</label>
+            <input type="password" id="cpConfirmPassword" placeholder="Ripeti la nuova password" required />
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block">
+            ✅ Cambia Password
+          </button>
+        </form>
       </div>
     </div>
   </div>
