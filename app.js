@@ -15,6 +15,7 @@ import {
   collection, 
   addDoc, 
   setDoc,
+  getDoc,
   deleteDoc, 
   doc, 
   getDocs,
@@ -153,14 +154,16 @@ export const CATEGORIES = {
   }
 };
 
-// --- 3. ROSTER UTENTI NOTI & RUOLI ---
-const DEFAULT_USERS = {
+// --- 3. ROSTER UTENTI: SOLO ALLENATORE, SAMUELE ADMIN & ATLETI REALI (MARCO E GIULIA RIMOSSI) ---
+let registeredUsers = {
   allenatore: {
     id: "allenatore",
     name: "Allenatore",
     email: "allenatore@atletica.it",
     role: "allenatore",
-    avatar: "📋"
+    avatar: "📋",
+    claimed: false,
+    uid: null
   },
   samuele_admin: {
     id: "samuele_admin",
@@ -168,35 +171,31 @@ const DEFAULT_USERS = {
     email: "samuele@trainingtracker.it",
     role: "admin",
     avatar: "👑"
-  },
-  marco_atleta: {
-    id: "marco_atleta",
-    name: "Marco",
-    email: "marco@atleta.it",
-    role: "atleta",
-    avatar: "🏃"
-  },
-  giulia_atleta: {
-    id: "giulia_atleta",
-    name: "Giulia",
-    email: "giulia@atleta.it",
-    role: "atleta",
-    avatar: "🏃"
   }
 };
 
+// Stato configurazione Allenatore unico
+let coachInfo = {
+  claimed: false,
+  uid: null,
+  email: null,
+  name: null
+};
+
 // --- 4. STATO APPLICAZIONE ---
-let currentUser = null; // utente Firebase autenticato
-let appRole = "admin"; // 'admin' | 'allenatore' | 'atleta'
-let activeAthleteId = "allenatore"; // l'atleta correntemente ispezionato
-let viewMode = "single"; // 'single' (solo atleta attivo) | 'all' (tutta la squadra)
-let allWorkouts = []; // lista completa di tutti gli allenamenti
+let currentUser = null;
+let appRole = "ospite"; // 'admin' | 'allenatore' | 'atleta' | 'ospite'
+let activeAthleteId = "allenatore"; // profilo attualmente selezionato per la visualizzazione
+let viewMode = "single"; // 'single' (scheda singolo atleta) | 'all' (tutta la squadra)
+let allWorkouts = [];
 let selectedCategoriesForNewWorkout = new Set();
-let currentCalendarMonth = new Date(2026, 10, 1); // Novembre 2026 come default iniziale (primi dati coach)
+let currentCalendarMonth = new Date(2026, 10, 1); // Novembre 2026 (dove partono i dati Excel)
 let unsubscribeFirestore = null;
 
 // --- 5. RIFERIMENTI DOM ---
 const authBox = document.getElementById("authBox");
+const loginGate = document.getElementById("loginGate");
+const authenticatedApp = document.getElementById("authenticatedApp");
 const athleteSwitcherBar = document.getElementById("athleteSwitcherBar");
 const activeAthleteName = document.getElementById("activeAthleteName");
 const activeAthleteAvatar = document.getElementById("activeAthleteAvatar");
@@ -247,8 +246,13 @@ const btnResetForm = document.getElementById("btnResetForm");
 const teamRosterGrid = document.getElementById("teamRosterGrid");
 const teamComparisonTbody = document.getElementById("teamComparisonTbody");
 const btnSyncExcelData = document.getElementById("btnSyncExcelData");
+const coachClaimBox = document.getElementById("coachClaimBox");
+const coachStatusBadge = document.getElementById("coachStatusBadge");
+const coachStatusDescription = document.getElementById("coachStatusDescription");
 
-// Modali
+// Modali & Gate
+const btnGateGoogleLogin = document.getElementById("btnGateGoogleLogin");
+const btnGateEmailLogin = document.getElementById("btnGateEmailLogin");
 const authModal = document.getElementById("authModal");
 const btnOpenAuthModal = document.getElementById("btnOpenAuthModal");
 const btnCloseAuthModal = document.getElementById("btnCloseAuthModal");
@@ -259,6 +263,8 @@ const authEmail = document.getElementById("authEmail");
 const authPassword = document.getElementById("authPassword");
 const authDisplayName = document.getElementById("authDisplayName");
 const authRoleSelect = document.getElementById("authRoleSelect");
+const optRoleCoach = document.getElementById("optRoleCoach");
+const roleNotice = document.getElementById("roleNotice");
 const groupRegisterName = document.getElementById("groupRegisterName");
 const groupRegisterRole = document.getElementById("groupRegisterRole");
 const btnSubmitEmailAuth = document.getElementById("btnSubmitEmailAuth");
@@ -274,47 +280,54 @@ const btnDayModalAddWorkout = document.getElementById("btnDayModalAddWorkout");
 // Toast
 const toast = document.getElementById("toast");
 
-// --- 6. INIZIALIZZAZIONE APPLICAZIONE ---
+// --- 6. INIZIALIZZAZIONE ---
 document.addEventListener("DOMContentLoaded", () => {
-  // Imposta data odierna come default
-  const today = new Date();
-  workoutDate.valueAsDate = today;
+  workoutDate.valueAsDate = new Date();
 
-  // Carica cache locale / seed coach se presente
-  loadLocalWorkoutsCache();
-
-  // Renderizza UI di base
+  loadLocalState();
   renderCategoryChips();
   renderLegendChips();
   setupNavigationTabs();
   setupEventListeners();
+  updateAthleteDropdowns();
   updateAthleteSwitcherUI();
-  renderCalendar();
-  renderWorkoutsFeed();
-  renderTeamOverview();
+  updateCoachStatusUI();
+  refreshActiveViews();
 
-  // Ascolta stato autenticazione Firebase
   setupAuthListener();
-
-  // Avvia ascolto Firestore in tempo reale
   listenToFirestore();
+  listenToCoachConfig();
 });
 
-// --- 7. CARICAMENTO E CACHING LOCALE ---
-function loadLocalWorkoutsCache() {
-  const cached = localStorage.getItem("tt_workouts");
-  if (cached) {
+// --- 7. CARICAMENTO E PERSISTENZA STATO LOCALE ---
+function loadLocalState() {
+  const cachedWorkouts = localStorage.getItem("tt_workouts");
+  if (cachedWorkouts) {
     try {
-      allWorkouts = JSON.parse(cached);
+      allWorkouts = JSON.parse(cachedWorkouts);
     } catch (e) {
       allWorkouts = [];
     }
   }
 
-  // Se non ci sono allenamenti in cache, carica il seed originale dell'allenatore da Excel!
+  // Se vuoto, carica il piano coach originale da Excel!
   if (!allWorkouts || allWorkouts.length === 0) {
     allWorkouts = [...COACH_INITIAL_WORKOUTS];
     saveLocalWorkoutsCache();
+  }
+
+  const cachedUsers = localStorage.getItem("tt_registered_users");
+  if (cachedUsers) {
+    try {
+      registeredUsers = { ...registeredUsers, ...JSON.parse(cachedUsers) };
+    } catch (e) {}
+  }
+
+  const cachedCoach = localStorage.getItem("tt_coach_config");
+  if (cachedCoach) {
+    try {
+      coachInfo = JSON.parse(cachedCoach);
+    } catch (e) {}
   }
 }
 
@@ -322,7 +335,161 @@ function saveLocalWorkoutsCache() {
   localStorage.setItem("tt_workouts", JSON.stringify(allWorkouts));
 }
 
-// --- 8. SINCRONIZZAZIONE FIRESTORE ---
+function saveLocalUsers() {
+  localStorage.setItem("tt_registered_users", JSON.stringify(registeredUsers));
+}
+
+function saveLocalCoachConfig() {
+  localStorage.setItem("tt_coach_config", JSON.stringify(coachInfo));
+}
+
+// --- 8. GESTIONE UNICO ALLENATORE (FIRST COME FIRST SERVED) ---
+async function listenToCoachConfig() {
+  try {
+    const coachDocRef = doc(db, "config", "coach");
+    onSnapshot(coachDocRef, (snap) => {
+      if (snap.exists()) {
+        coachInfo = snap.data();
+        saveLocalCoachConfig();
+        applyCoachAssignment();
+      }
+    });
+  } catch (e) {
+    console.warn("Ascolto config coach:", e);
+  }
+}
+
+function applyCoachAssignment() {
+  if (coachInfo && coachInfo.claimed) {
+    registeredUsers.allenatore = {
+      id: "allenatore",
+      name: coachInfo.name || "Allenatore Ufficiale",
+      email: coachInfo.email,
+      role: "allenatore",
+      avatar: "📋",
+      claimed: true,
+      uid: coachInfo.uid
+    };
+
+    // Se l'utente correntemente loggato è l'allenatore
+    if (currentUser && currentUser.uid === coachInfo.uid) {
+      appRole = "allenatore";
+    }
+
+    // Se un altro utente si registra, non può scegliere 'allenatore'
+    if (optRoleCoach) {
+      optRoleCoach.disabled = true;
+      optRoleCoach.textContent = "📋 Allenatore (Già assegnato)";
+    }
+    if (roleNotice) {
+      roleNotice.textContent = "L'Allenatore unico è già stato assegnato.";
+    }
+  } else {
+    if (optRoleCoach) {
+      optRoleCoach.disabled = false;
+      optRoleCoach.textContent = "📋 Allenatore (Unico coach - entra per primo)";
+    }
+    if (roleNotice) {
+      roleNotice.textContent = "Il primo utente che effettua l'accesso come allenatore ottiene la titolarità della scheda.";
+    }
+  }
+  updateCoachStatusUI();
+  updateAthleteDropdowns();
+  updateAthleteSwitcherUI();
+}
+
+async function claimCoachSlot(user, chosenName = null) {
+  if (coachInfo && coachInfo.claimed && coachInfo.uid !== user.uid) {
+    showToast("Il ruolo di Allenatore è già stato assegnato a un altro account!", "error");
+    return false;
+  }
+
+  coachInfo = {
+    claimed: true,
+    uid: user.uid,
+    email: user.email,
+    name: chosenName || user.displayName || user.email.split("@")[0],
+    claimedAt: new Date().toISOString()
+  };
+
+  saveLocalCoachConfig();
+
+  // Salva su Firestore per tutti i client
+  try {
+    await setDoc(doc(db, "config", "coach"), coachInfo, { merge: true });
+  } catch (err) {
+    console.warn("Salvataggio config coach su Firestore:", err);
+  }
+
+  // Associa i 25 allenamenti di Excel al coach
+  allWorkouts.forEach(w => {
+    if (w.userId === "allenatore" || w.userEmail === "allenatore@atletica.it") {
+      w.userId = user.uid;
+      w.userEmail = user.email;
+      w.userName = coachInfo.name;
+    }
+  });
+  saveLocalWorkoutsCache();
+
+  appRole = "allenatore";
+  activeAthleteId = user.uid;
+  applyCoachAssignment();
+  refreshActiveViews();
+  showToast(`Benvenuto Coach! Ti sono stati assegnati i tuoi allenamenti da Excel ⚡`, "success");
+  return true;
+}
+
+function updateCoachStatusUI() {
+  if (!coachClaimBox || !coachStatusBadge) return;
+
+  if (coachInfo && coachInfo.claimed) {
+    coachStatusBadge.textContent = "Allenatore Assegnato";
+    coachStatusBadge.className = "badge badge-accent";
+    coachClaimBox.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <strong style="color: #38bdf8; font-size: 1rem;">📋 ${escapeHtml(coachInfo.name)}</strong>
+          <span style="color: #94a3b8; font-size: 0.82rem; margin-left: 8px;">(${escapeHtml(coachInfo.email)})</span>
+          <div style="color: #64748b; font-size: 0.75rem; margin-top: 3px;">Titolare unico del piano allenamenti Excel, delle categorie Sci e Nuoto Jolly.</div>
+        </div>
+        ${appRole === 'admin' ? '<button id="btnResetCoachSlot" class="btn btn-secondary btn-sm">Resetta Slot Coach</button>' : ''}
+      </div>
+    `;
+
+    const btnReset = document.getElementById("btnResetCoachSlot");
+    if (btnReset) {
+      btnReset.addEventListener("click", async () => {
+        if (confirm("Vuoi liberare lo slot di Allenatore per riassegnarlo?")) {
+          coachInfo = { claimed: false, uid: null, email: null, name: null };
+          saveLocalCoachConfig();
+          try {
+            await setDoc(doc(db, "config", "coach"), coachInfo);
+          } catch(e){}
+          applyCoachAssignment();
+          showToast("Slot Allenatore liberato!", "success");
+        }
+      });
+    }
+  } else {
+    coachStatusBadge.textContent = "In attesa del Coach";
+    coachStatusBadge.className = "badge";
+    coachClaimBox.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+        <span style="color: #f59e0b; font-size: 0.85rem;">🟡 Nessun account collegato all'Allenatore ancora.</span>
+        ${currentUser ? '<button id="btnClaimCoachSelf" class="btn btn-primary btn-sm">🎯 Sono io l\'Allenatore (Reclama Slot)</button>' : '<span class="text-xs text-muted">Fai accedere il tuo coach per primo.</span>'}
+      </div>
+    `;
+
+    const btnClaim = document.getElementById("btnClaimCoachSelf");
+    if (btnClaim) {
+      btnClaim.addEventListener("click", () => {
+        claimCoachSlot(currentUser);
+      });
+    }
+  }
+}
+
+// --- 9. SINCRONIZZAZIONE FIRESTORE ---
 async function listenToFirestore() {
   try {
     const workoutsCol = collection(db, "workouts");
@@ -334,18 +501,14 @@ async function listenToFirestore() {
         snapshot.forEach((docSnap) => {
           firestoreList.push({ id: docSnap.id, ...docSnap.data() });
         });
-
-        // Se Firestore ha dati, usali come sorgente principale
         allWorkouts = firestoreList;
         saveLocalWorkoutsCache();
       } else {
-        // Se Firestore è completamente vuoto, facciamo il seed iniziale dei 25 allenamenti del coach!
         seedCoachWorkoutsToFirestore(false);
       }
       refreshActiveViews();
     }, (error) => {
-      console.warn("Firestore offline o permessi non configurati, uso cache locale:", error);
-      showNotice("Modalità locale attiva (sincronizzazione automatica con Firestore in background)");
+      console.warn("Firestore listener fallback cache locale:", error);
       refreshActiveViews();
     });
   } catch (err) {
@@ -357,12 +520,16 @@ async function listenToFirestore() {
 async function seedCoachWorkoutsToFirestore(notifyUser = true) {
   try {
     let count = 0;
+    const coachTargetUid = (coachInfo && coachInfo.uid) ? coachInfo.uid : "allenatore";
+    const coachTargetEmail = (coachInfo && coachInfo.email) ? coachInfo.email : "allenatore@atletica.it";
+    const coachTargetName = (coachInfo && coachInfo.name) ? coachInfo.name : "Allenatore";
+
     for (const w of COACH_INITIAL_WORKOUTS) {
       const docRef = doc(db, "workouts", w.id);
       await setDoc(docRef, {
-        userId: w.userId,
-        userName: w.userName,
-        userEmail: w.userEmail,
+        userId: coachTargetUid,
+        userName: coachTargetName,
+        userEmail: coachTargetEmail,
         date: w.date,
         categories: w.categories,
         title: w.title,
@@ -374,70 +541,82 @@ async function seedCoachWorkoutsToFirestore(notifyUser = true) {
       count++;
     }
     if (notifyUser) {
-      showToast(`Sincronizzati con successo ${count} allenamenti dell'allenatore da Excel!`, "success");
+      showToast(`Sincronizzati ${count} allenamenti dell'allenatore da Excel!`, "success");
     }
   } catch (error) {
-    console.error("Errore durante seed su Firestore:", error);
-    // Assicuriamoci che siano almeno presenti in locale
-    for (const w of COACH_INITIAL_WORKOUTS) {
-      if (!allWorkouts.some(item => item.id === w.id)) {
-        allWorkouts.push(w);
-      }
-    }
-    saveLocalWorkoutsCache();
-    refreshActiveViews();
+    console.error("Seed su Firestore:", error);
     if (notifyUser) {
-      showToast("Dati allenatore caricati nella memoria locale!", "success");
+      showToast("Dati ripristinati nella cache locale!", "success");
     }
   }
 }
 
-// --- 9. GESTIONE AUTENTICAZIONE ---
+// --- 10. GESTIONE AUTENTICAZIONE ---
 function setupAuthListener() {
   onAuthStateChanged(auth, (user) => {
     currentUser = user;
     if (user) {
-      // Determinazione ruolo in base all'utente
-      if (user.email && (user.email.includes("samuele") || user.email === "admin@trainingtracker.it")) {
+      // Determinazione ruolo
+      const emailLower = (user.email || "").toLowerCase();
+      
+      if (emailLower.includes("samuele") || emailLower === "admin@trainingtracker.it") {
         appRole = "admin";
-      } else if (user.email && user.email.includes("allenatore")) {
+        activeAthleteId = "samuele_admin";
+      } else if (coachInfo && coachInfo.claimed && (coachInfo.uid === user.uid || coachInfo.email === user.email)) {
         appRole = "allenatore";
-      } else {
-        // Leggi ruolo personalizzato salvato se esiste
+        activeAthleteId = user.uid;
+      } else if (!coachInfo.claimed) {
+        // Se non c'è ancora un allenatore e l'utente ha scelto allenatore o email coerente
         const savedRole = localStorage.getItem(`tt_user_role_${user.uid}`);
-        appRole = savedRole || "atleta";
+        if (savedRole === "allenatore" || emailLower.includes("allenatore") || emailLower.includes("coach")) {
+          claimCoachSlot(user);
+        } else {
+          appRole = "atleta";
+          activeAthleteId = user.uid;
+        }
+      } else {
+        appRole = "atleta";
+        activeAthleteId = user.uid;
       }
 
-      // Imposta l'atleta attivo di default per questo utente
-      if (appRole === "admin") {
-        activeAthleteId = "samuele_admin";
-      } else if (appRole === "allenatore") {
-        activeAthleteId = "allenatore";
-      } else {
-        activeAthleteId = user.uid;
-        // Aggiungi utente dinamico al roster
-        DEFAULT_USERS[user.uid] = {
+      // Aggiungi utente loggato al roster se non presente
+      if (!registeredUsers[user.uid]) {
+        registeredUsers[user.uid] = {
           id: user.uid,
           name: user.displayName || user.email.split("@")[0],
           email: user.email,
-          role: "atleta",
-          avatar: "🏃"
+          role: appRole,
+          avatar: appRole === "admin" ? "👑" : (appRole === "allenatore" ? "📋" : "🏃")
         };
+        saveLocalUsers();
       }
 
+      // Mostra l'applicazione completa
+      loginGate.classList.add("hidden");
+      authenticatedApp.classList.remove("hidden");
+      athleteSwitcherBar.classList.remove("hidden");
+
       renderAuthUI(user);
+      updateAthleteDropdowns();
       updateAthleteSwitcherUI();
       renderCategoryChips();
       refreshActiveViews();
-      showToast(`Accesso effettuato come ${user.displayName || user.email}`, "success");
+      updateCoachStatusUI();
+      showToast(`Benvenuto, ${user.displayName || user.email}!`, "success");
     } else {
-      // Modalità ospite/demo: Default su Admin per consentire test completo
-      appRole = "admin";
+      // Non autenticato: l'utente può esplorare e visualizzare tutto ("va bene che tutti possano vedee tutto, opzionalmente")
+      appRole = "ospite";
       activeAthleteId = "allenatore";
+      loginGate.classList.add("hidden");
+      authenticatedApp.classList.remove("hidden");
+      athleteSwitcherBar.classList.remove("hidden");
+
       renderAuthUI(null);
+      updateAthleteDropdowns();
       updateAthleteSwitcherUI();
       renderCategoryChips();
       refreshActiveViews();
+      updateCoachStatusUI();
     }
   });
 }
@@ -452,7 +631,7 @@ function renderAuthUI(user) {
     profile.innerHTML = `
       <img src="${avatarSrc}" class="user-avatar" alt="Avatar" />
       <div class="user-meta">
-        <span class="user-name">${escapeHtml(user.displayName || user.email)}</span>
+        <span class="user-name">${escapeHtml(user.displayName || user.email.split("@")[0])}</span>
         <span class="user-role-tag">${appRole.toUpperCase()}</span>
       </div>
       <button id="btnLogout" class="btn btn-secondary btn-sm" title="Disconnettiti">Esci</button>
@@ -466,40 +645,74 @@ function renderAuthUI(user) {
   } else {
     const loginBtn = document.createElement("button");
     loginBtn.className = "btn btn-primary btn-sm";
-    loginBtn.innerHTML = `🔑 Accedi / Registrati`;
+    loginBtn.innerHTML = `🔑 Accedi`;
     loginBtn.addEventListener("click", () => openAuthModal());
     authBox.appendChild(loginBtn);
   }
 }
 
-// --- 10. GESTIONE SWITCHER SQUADRA / ATLETA ---
+// --- 11. AGGIORNAMENTO SELETTORI & SWITCHER ---
+function updateAthleteDropdowns() {
+  if (!athleteSelectDropdown) return;
+
+  athleteSelectDropdown.innerHTML = "";
+  if (formAthleteTarget) formAthleteTarget.innerHTML = "";
+
+  // Roster pulito: Allenatore, Samuele (Admin & Atleta), e gli atleti registrati
+  const coachLabel = (coachInfo && coachInfo.name) ? `📋 ${coachInfo.name} (Coach)` : `📋 Allenatore (Dati da Excel)`;
+  
+  const entries = [
+    { id: "allenatore", label: coachLabel },
+    { id: "samuele_admin", label: "👑 Samuele (Admin & Atleta)" }
+  ];
+
+  // Aggiungi atleti reali registrati
+  Object.values(registeredUsers).forEach(u => {
+    if (u.id !== "allenatore" && u.id !== "samuele_admin") {
+      entries.push({
+        id: u.id,
+        label: `🏃 ${u.name} (Atleta)`
+      });
+    }
+  });
+
+  entries.forEach(e => {
+    const opt1 = document.createElement("option");
+    opt1.value = e.id;
+    opt1.textContent = e.label;
+    athleteSelectDropdown.appendChild(opt1);
+
+    if (formAthleteTarget) {
+      const opt2 = document.createElement("option");
+      opt2.value = e.id;
+      opt2.textContent = e.label;
+      formAthleteTarget.appendChild(opt2);
+    }
+  });
+
+  athleteSelectDropdown.value = activeAthleteId;
+  if (formAthleteTarget) formAthleteTarget.value = activeAthleteId;
+}
+
 function updateAthleteSwitcherUI() {
-  const currentAthlete = DEFAULT_USERS[activeAthleteId] || {
-    id: activeAthleteId,
-    name: "Atleta Personalizzato",
-    role: "atleta",
-    avatar: "🏃"
-  };
+  let currentAthlete = registeredUsers[activeAthleteId];
+  if (!currentAthlete) {
+    if (activeAthleteId === (coachInfo && coachInfo.uid)) {
+      currentAthlete = registeredUsers.allenatore;
+    } else {
+      currentAthlete = { name: "Atleta", role: "atleta", avatar: "🏃" };
+    }
+  }
 
   activeAthleteName.textContent = currentAthlete.name;
   activeAthleteAvatar.textContent = currentAthlete.avatar || "🏃";
   activeAthleteRoleBadge.textContent = currentAthlete.role;
   activeAthleteRoleBadge.className = `role-badge ${currentAthlete.role}`;
 
-  // Selettore dropdown
-  if (athleteSelectDropdown) {
-    athleteSelectDropdown.value = activeAthleteId;
-  }
-  if (formAthleteTarget) {
-    formAthleteTarget.value = activeAthleteId;
-  }
-
-  // Visibilità selettore squadra: visibile a tutti per demo/facilità di test, con permessi evidenziati
   if (calendarAthleteSubtitle) {
     calendarAthleteSubtitle.textContent = viewMode === "all" ? "Visuale: Tutta la Squadra" : `Scheda di: ${currentAthlete.name}`;
   }
 
-  // Seleziona bottoni toggle
   btnViewSelectedAthlete.classList.toggle("active", viewMode === "single");
   btnViewAllAthletes.classList.toggle("active", viewMode === "all");
 }
@@ -508,11 +721,11 @@ function setActiveAthlete(athleteId) {
   activeAthleteId = athleteId;
   viewMode = "single";
   updateAthleteSwitcherUI();
-  renderCategoryChips(); // aggiorna visibilità sci/nuoto per l'allenatore
+  renderCategoryChips();
   refreshActiveViews();
 }
 
-// --- 11. GESTIONE TABS NAVIGAZIONE ---
+// --- 12. GESTIONE TAB NAVIGAZIONE ---
 function setupNavigationTabs() {
   navTabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -526,7 +739,6 @@ function setupNavigationTabs() {
         targetPane.classList.add("active");
       }
 
-      // Ridisegna la tab selezionata
       if (targetTab === "tabCalendar") renderCalendar();
       if (targetTab === "tabLog") renderWorkoutsFeed();
       if (targetTab === "tabTeam") renderTeamOverview();
@@ -548,14 +760,14 @@ function updateWorkoutsBadgeCount() {
   }
 }
 
-// Filtro allenamenti per utente attivo o intera squadra
+// Filtra allenamenti in base al profilo selezionato o tutta la squadra
 function getVisibleWorkouts() {
   if (viewMode === "all") {
     return allWorkouts;
   }
   return allWorkouts.filter(w => {
-    if (activeAthleteId === "allenatore") {
-      return w.userId === "allenatore" || (w.userEmail && w.userEmail.includes("allenatore"));
+    if (activeAthleteId === "allenatore" || (coachInfo && coachInfo.uid && activeAthleteId === coachInfo.uid)) {
+      return w.userId === "allenatore" || (coachInfo && w.userId === coachInfo.uid) || (w.userEmail && w.userEmail.includes("allenatore"));
     }
     if (activeAthleteId === "samuele_admin") {
       return w.userId === "samuele_admin" || (w.userEmail && w.userEmail.includes("samuele"));
@@ -564,7 +776,7 @@ function getVisibleWorkouts() {
   });
 }
 
-// --- 12. TAB 1: PANORAMICA MENSILE (CALENDARIO) ---
+// --- 13. TAB 1: PANORAMICA MENSILE (CALENDARIO) ---
 function renderCalendar() {
   if (!calendarGrid) return;
   calendarGrid.innerHTML = "";
@@ -582,11 +794,9 @@ function renderCalendar() {
   const firstDayOfMonth = new Date(year, month, 1);
   const lastDayOfMonth = new Date(year, month + 1, 0);
 
-  // In Italia la settimana inizia di Lunedì (0 = Lun, 6 = Dom)
   let startingDayOfWeek = (firstDayOfMonth.getDay() + 6) % 7;
   const totalDaysInMonth = lastDayOfMonth.getDate();
 
-  // Giorni del mese precedente per riempire la griglia
   const prevMonthLastDay = new Date(year, month, 0).getDate();
   for (let i = startingDayOfWeek - 1; i >= 0; i--) {
     const dayNum = prevMonthLastDay - i;
@@ -594,11 +804,9 @@ function renderCalendar() {
     calendarGrid.appendChild(cell);
   }
 
-  // Giorni del mese corrente
   const today = new Date();
   const visibleWorkouts = getVisibleWorkouts();
 
-  // Mappa gli allenamenti per giorno del mese
   const workoutsByDate = {};
   visibleWorkouts.forEach(w => {
     if (!workoutsByDate[w.date]) workoutsByDate[w.date] = [];
@@ -627,7 +835,6 @@ function renderCalendar() {
     }
   }
 
-  // Giorni del mese successivo per completare la griglia a multipli di 7
   const totalCellsSoFar = startingDayOfWeek + totalDaysInMonth;
   const remainingCells = (7 - (totalCellsSoFar % 7)) % 7;
   for (let i = 1; i <= remainingCells; i++) {
@@ -635,10 +842,8 @@ function renderCalendar() {
     calendarGrid.appendChild(cell);
   }
 
-  // Aggiorna statistiche del mese
   calStatTotal.textContent = monthlyWorkoutsCount;
 
-  // Trova categoria principale del mese
   let topCatId = "-";
   let maxCount = 0;
   for (const [cat, count] of Object.entries(categoryCounter)) {
@@ -650,7 +855,6 @@ function renderCalendar() {
   const topCatObj = CATEGORIES[topCatId];
   calStatTopCategory.textContent = topCatObj ? `${topCatObj.icon} ${topCatObj.label}` : "Nessuna";
 
-  // Renderizza barre di breakdown categorie
   renderMonthlyBreakdownBars(categoryCounter, monthlyWorkoutsCount);
 }
 
@@ -668,7 +872,6 @@ function createCalendarCell(dayNumber, isOtherMonth, cellDate, isToday = false, 
 
   if (dayWorkouts.length > 0) {
     dayWorkouts.forEach(w => {
-      // Badge per ciascuna categoria dell'allenamento
       const cats = w.categories && w.categories.length > 0 ? w.categories : ["velocita"];
       cats.forEach(catId => {
         const catObj = CATEGORIES[catId] || { label: catId, bg: "#334155", color: "#fff", icon: "⚡" };
@@ -677,11 +880,10 @@ function createCalendarCell(dayNumber, isOtherMonth, cellDate, isToday = false, 
         pill.style.backgroundColor = catObj.bg;
         pill.style.color = catObj.color;
         pill.style.borderLeftColor = catObj.border || catObj.color;
-        pill.innerHTML = `<span>${catObj.icon}</span> <span>${catObj.label}</span>`;
+        pill.innerHTML = `<span class="pill-icon">${catObj.icon}</span> <span class="pill-text">${catObj.label}</span>`;
         workoutsContainer.appendChild(pill);
       });
 
-      // Se ci sono specifiche, mostra anteprima
       if (w.specifiche) {
         const drillPreview = document.createElement("div");
         drillPreview.className = "cal-workout-drill";
@@ -691,15 +893,12 @@ function createCalendarCell(dayNumber, isOtherMonth, cellDate, isToday = false, 
       }
     });
 
-    // Click sulla cella apre il dettaglio della giornata
     cell.addEventListener("click", () => {
       openDayDetailModal(cellDate, dayWorkouts);
     });
   } else if (!isOtherMonth) {
-    // Click su giorno vuoto propone di aggiungere allenamento
     cell.addEventListener("click", () => {
       workoutDate.valueAsDate = cellDate;
-      // Passa alla tab di inserimento
       document.querySelector('[data-tab="tabNew"]').click();
     });
   }
@@ -717,7 +916,7 @@ function renderMonthlyBreakdownBars(counter, totalWorkouts) {
   if (entries.length === 0) {
     categoryBreakdownBars.innerHTML = `
       <div class="empty-state" style="grid-column: 1 / -1; padding: 20px;">
-        <p class="text-dim">Nessun allenamento registrato in questo mese per l'atleta selezionato.</p>
+        <p class="text-dim">Nessun allenamento registrato in questo mese per il profilo selezionato.</p>
       </div>
     `;
     return;
@@ -759,14 +958,13 @@ function renderLegendChips() {
   });
 }
 
-// --- 13. TAB 2: DIARIO ALLENAMENTI (FEED LISTA) ---
+// --- 14. TAB 2: DIARIO ALLENAMENTI (FEED LISTA) ---
 function renderWorkoutsFeed() {
   if (!workoutsHistoryList) return;
   workoutsHistoryList.innerHTML = "";
 
   let list = getVisibleWorkouts();
 
-  // Filtro ricerca testo (specifiche, tempi, note, titolo)
   const queryText = (searchInput.value || "").toLowerCase().trim();
   if (queryText) {
     list = list.filter(w => {
@@ -778,13 +976,11 @@ function renderWorkoutsFeed() {
     });
   }
 
-  // Filtro categoria
   const catFilter = filterCategory.value;
   if (catFilter && catFilter !== "ALL") {
     list = list.filter(w => (w.categories || []).includes(catFilter));
   }
 
-  // Ordinamento per data
   const order = sortOrder.value;
   list.sort((a, b) => {
     return order === "asc" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date);
@@ -796,8 +992,8 @@ function renderWorkoutsFeed() {
     workoutsHistoryList.innerHTML = `
       <div class="empty-state">
         <span class="empty-icon">👟</span>
-        <p>Nessun allenamento trovato con i criteri selezionati.</p>
-        <small>Modifica i filtri o premi "Registra Allenamento" per salvare una nuova sessione.</small>
+        <p>Nessun allenamento trovato.</p>
+        <small>Modifica i filtri o premi "Registra Allenamento" per salvare una sessione.</small>
       </div>
     `;
     return;
@@ -813,13 +1009,11 @@ function createWorkoutCard(w) {
   const card = document.createElement("div");
   card.className = "workout-card";
 
-  // Data formattata in italiano
   const d = new Date(w.date + "T00:00:00");
   const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
   const formattedDate = d.toLocaleDateString('it-IT', options);
   const weekdayShort = d.toLocaleDateString('it-IT', { weekday: 'short' }).toUpperCase();
 
-  // Badges categorie
   const categoriesHtml = (w.categories || ["velocita"]).map(catId => {
     const cat = CATEGORIES[catId] || { label: catId, bg: "#38bdf8", color: "#000", border: "#38bdf8", icon: "⚡" };
     return `
@@ -829,7 +1023,7 @@ function createWorkoutCard(w) {
     `;
   }).join("");
 
-  const athleteName = w.userName || (DEFAULT_USERS[w.userId] ? DEFAULT_USERS[w.userId].name : "Atleta");
+  const athleteName = w.userName || (registeredUsers[w.userId] ? registeredUsers[w.userId].name : "Atleta");
 
   card.innerHTML = `
     <div class="workout-card-header">
@@ -866,7 +1060,6 @@ function createWorkoutCard(w) {
     </div>
   `;
 
-  // Listener eliminazione
   const delBtn = card.querySelector(".btn-action-del");
   delBtn.addEventListener("click", () => deleteWorkout(w.id));
 
@@ -877,35 +1070,32 @@ async function deleteWorkout(workoutId) {
   if (!confirm("Sei sicuro di voler eliminare questo allenamento?")) return;
 
   try {
-    // Elimina da Firestore se connesso
     const docRef = doc(db, "workouts", workoutId);
     await deleteDoc(docRef);
   } catch (err) {
-    console.warn("Eliminazione da Firestore non riuscita, elimino in locale:", err);
+    console.warn("Eliminazione Firestore:", err);
   }
 
-  // Elimina dalla cache locale
   allWorkouts = allWorkouts.filter(w => w.id !== workoutId);
   saveLocalWorkoutsCache();
   refreshActiveViews();
   showToast("Allenamento eliminato con successo", "success");
 }
 
-// --- 14. TAB 3: REGISTRA NUOVO ALLENAMENTO ---
+// --- 15. TAB 3: REGISTRA NUOVO ALLENAMENTO ---
 function renderCategoryChips() {
   if (!categoryChipsPicker) return;
   categoryChipsPicker.innerHTML = "";
 
-  const isCoachOrAdmin = (appRole === "admin" || appRole === "allenatore" || activeAthleteId === "allenatore");
+  const isCoachOrAdmin = (appRole === "admin" || appRole === "allenatore" || activeAthleteId === "allenatore" || (coachInfo && activeAthleteId === coachInfo.uid));
 
   Object.values(CATEGORIES).forEach(cat => {
-    // Se la categoria è riservata all'allenatore (sci, nuoto), nascondila agli atleti standard
     if (cat.coachOnly && !isCoachOrAdmin) {
       return;
     }
 
     const btn = document.createElement("button");
-    typeButton(btn);
+    btn.type = "button";
     btn.className = `cat-chip-btn ${selectedCategoriesForNewWorkout.has(cat.id) ? 'active' : ''}`;
     btn.dataset.catId = cat.id;
 
@@ -943,7 +1133,7 @@ function renderCategoryChips() {
 function updateCategorySelectionNotice() {
   if (!selectedCategoriesNotice) return;
   if (selectedCategoriesForNewWorkout.size === 0) {
-    selectedCategoriesNotice.textContent = "⚠️ Nessuna categoria selezionata. Selezionane almeno una (anche più di una).";
+    selectedCategoriesNotice.textContent = "⚠️ Nessuna categoria selezionata. Clicca su almeno una categoria.";
     selectedCategoriesNotice.style.color = "#f87171";
   } else {
     const names = Array.from(selectedCategoriesForNewWorkout)
@@ -954,7 +1144,7 @@ function updateCategorySelectionNotice() {
   }
 }
 
-// Handler invio form
+// Invio form
 workoutForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -964,11 +1154,10 @@ workoutForm.addEventListener("submit", async (e) => {
   }
 
   const targetAthlete = formAthleteTarget ? formAthleteTarget.value : activeAthleteId;
-  const targetUserObj = DEFAULT_USERS[targetAthlete] || {
-    id: targetAthlete,
-    name: "Atleta",
-    email: "atleta@trainingtracker.it"
-  };
+  let targetUserObj = registeredUsers[targetAthlete];
+  if (!targetUserObj) {
+    targetUserObj = { id: targetAthlete, name: "Atleta", email: "atleta@trainingtracker.it" };
+  }
 
   const newWorkout = {
     id: `workout_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -985,26 +1174,20 @@ workoutForm.addEventListener("submit", async (e) => {
   };
 
   try {
-    // Salva su Firestore
     const docRef = doc(db, "workouts", newWorkout.id);
     await setDoc(docRef, {
       ...newWorkout,
       createdAt: serverTimestamp()
     });
   } catch (err) {
-    console.warn("Salvataggio su Firestore non riuscito, salvato in locale:", err);
+    console.warn("Salvataggio Firestore:", err);
   }
 
-  // Aggiorna memoria e cache locale
   allWorkouts.unshift(newWorkout);
   saveLocalWorkoutsCache();
 
   showToast("Allenamento registrato con successo! ⚡", "success");
-
-  // Reset del form
   resetWorkoutForm();
-
-  // Torna alla tab calendario per vedere subito il nuovo inserimento
   document.querySelector('[data-tab="tabCalendar"]').click();
 });
 
@@ -1017,38 +1200,39 @@ function resetWorkoutForm() {
 
 btnResetForm.addEventListener("click", resetWorkoutForm);
 
-// Snippet rapidi
 document.querySelectorAll(".btn-snippet").forEach(btn => {
   btn.addEventListener("click", () => {
-    const snippet = btn.getAttribute("data-snippet");
-    workoutSpecifiche.value = snippet;
+    workoutSpecifiche.value = btn.getAttribute("data-snippet");
     workoutSpecifiche.focus();
   });
 });
 
-// --- 15. TAB 4: SQUADRA & STATISTICHE ---
+// --- 16. TAB 4: SQUADRA & STATISTICHE ---
 function renderTeamOverview() {
   if (!teamRosterGrid || !teamComparisonTbody) return;
 
   teamRosterGrid.innerHTML = "";
   teamComparisonTbody.innerHTML = "";
 
-  const usersList = Object.values(DEFAULT_USERS);
+  const usersList = Object.values(registeredUsers);
   const currentMonthPrefix = formatDateToISO(currentCalendarMonth).substring(0, 7);
 
   usersList.forEach(u => {
-    // Calcola statistiche per questo utente
-    const userWorkouts = allWorkouts.filter(w => w.userId === u.id);
+    const userWorkouts = allWorkouts.filter(w => {
+      if (u.id === "allenatore" || (coachInfo && coachInfo.uid && u.id === coachInfo.uid)) {
+        return w.userId === "allenatore" || (coachInfo && w.userId === coachInfo.uid) || (w.userEmail && w.userEmail.includes("allenatore"));
+      }
+      return w.userId === u.id;
+    });
+
     const thisMonthWorkouts = userWorkouts.filter(w => w.date.startsWith(currentMonthPrefix));
     
-    // Ultimo allenamento
     let lastDate = "-";
     if (userWorkouts.length > 0) {
       const sorted = [...userWorkouts].sort((a, b) => b.date.localeCompare(a.date));
       lastDate = sorted[0].date;
     }
 
-    // Roster Card
     const card = document.createElement("div");
     card.className = `athlete-roster-card ${activeAthleteId === u.id ? 'active-selected' : ''}`;
     card.innerHTML = `
@@ -1060,7 +1244,7 @@ function renderTeamOverview() {
         </div>
       </div>
       <div class="roster-stats-row">
-        <span>Sedute Totali: <strong>${userWorkouts.length}</strong></span>
+        <span>Totali: <strong>${userWorkouts.length}</strong></span>
         <span>Questo Mese: <strong>${thisMonthWorkouts.length}</strong></span>
       </div>
       <button class="btn btn-secondary btn-sm btn-block">Visualizza Scheda</button>
@@ -1071,7 +1255,6 @@ function renderTeamOverview() {
     });
     teamRosterGrid.appendChild(card);
 
-    // Tabella comparativa
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${escapeHtml(u.name)}</strong></td>
@@ -1095,7 +1278,7 @@ btnSyncExcelData.addEventListener("click", () => {
   }
 });
 
-// --- 16. DETTAGLIO GIORNATA CALENDARIO MODALE ---
+// --- 17. DETTAGLIO GIORNATA MODALE ---
 function openDayDetailModal(dateObj, dayWorkouts) {
   const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
   const dateFormatted = dateObj.toLocaleDateString('it-IT', options);
@@ -1125,7 +1308,7 @@ btnCloseDayModal.addEventListener("click", () => {
   dayDetailModal.classList.add("hidden");
 });
 
-// --- 17. MODALE AUTENTICAZIONE (EMAIL & GOOGLE) ---
+// --- 18. MODALE AUTENTICAZIONE ---
 function openAuthModal() {
   authErrorMsg.classList.add("hidden");
   authModal.classList.remove("hidden");
@@ -1153,7 +1336,14 @@ tabBtnRegister.addEventListener("click", () => {
   btnSubmitEmailAuth.textContent = "Registrati";
 });
 
-// Submit Email Auth
+btnGateGoogleLogin.addEventListener("click", () => {
+  signInWithGoogle();
+});
+
+btnGateEmailLogin.addEventListener("click", () => {
+  openAuthModal();
+});
+
 emailAuthForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   authErrorMsg.classList.add("hidden");
@@ -1163,13 +1353,23 @@ emailAuthForm.addEventListener("submit", async (e) => {
 
   try {
     if (isRegister) {
+      const chosenRole = authRoleSelect.value;
+      if (chosenRole === "allenatore" && coachInfo && coachInfo.claimed) {
+        authErrorMsg.textContent = "Il ruolo di Allenatore è già stato assegnato a un altro account!";
+        authErrorMsg.classList.remove("hidden");
+        return;
+      }
+
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       const displayName = authDisplayName.value.trim() || email.split("@")[0];
       await updateProfile(user, { displayName });
 
-      const chosenRole = authRoleSelect.value;
       localStorage.setItem(`tt_user_role_${user.uid}`, chosenRole);
+
+      if (chosenRole === "allenatore") {
+        await claimCoachSlot(user, displayName);
+      }
 
       closeAuthModal();
       showToast(`Registrazione riuscita! Benvenuto ${displayName}`, "success");
@@ -1193,21 +1393,21 @@ emailAuthForm.addEventListener("submit", async (e) => {
   }
 });
 
-// Google Login
-btnModalGoogleLogin.addEventListener("click", async () => {
+async function signInWithGoogle() {
   try {
     await signInWithPopup(auth, googleProvider);
     closeAuthModal();
   } catch (error) {
-    console.error("Errore Google Auth:", error);
+    console.error("Google Auth:", error);
     authErrorMsg.textContent = "Accesso Google non riuscito: " + error.message;
     authErrorMsg.classList.remove("hidden");
   }
-});
+}
 
-// --- 18. EVENT LISTENERS GENERALI ---
+btnModalGoogleLogin.addEventListener("click", signInWithGoogle);
+
+// --- 19. EVENT LISTENERS GENERALI ---
 function setupEventListeners() {
-  // Navigazione Mesi Calendario
   btnPrevMonth.addEventListener("click", () => {
     currentCalendarMonth = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth() - 1, 1);
     renderCalendar();
@@ -1224,12 +1424,10 @@ function setupEventListeners() {
     renderCalendar();
   });
 
-  // Switcher Atleta Dropdown
   athleteSelectDropdown.addEventListener("change", (e) => {
     setActiveAthlete(e.target.value);
   });
 
-  // Switcher Toggle Singolo / Squadra
   btnViewSelectedAthlete.addEventListener("click", () => {
     viewMode = "single";
     updateAthleteSwitcherUI();
@@ -1242,7 +1440,6 @@ function setupEventListeners() {
     refreshActiveViews();
   });
 
-  // Filtri diario
   searchInput.addEventListener("input", () => {
     btnClearSearch.classList.toggle("hidden", !searchInput.value);
     renderWorkoutsFeed();
@@ -1273,19 +1470,10 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-function typeButton(el) {
-  el.setAttribute("type", "button");
-}
-
 function showToast(message, type = "success") {
   toast.textContent = message;
   toast.className = `toast ${type} show`;
   setTimeout(() => {
     toast.className = "toast";
   }, 3500);
-}
-
-function showNotice(msg) {
-  noticeBanner.textContent = msg;
-  noticeBanner.classList.remove("hidden");
 }

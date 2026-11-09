@@ -1073,6 +1073,17 @@ input:focus, textarea:focus {
 /* ========================================= */
 /* TEAM OVERVIEW (TAB 4)                     */
 /* ========================================= */
+.coach-linking-card {
+  border-left: 4px solid var(--primary);
+}
+
+.coach-claim-info {
+  background: #0f172a;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+}
+
 .team-roster-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -1164,6 +1175,86 @@ input:focus, textarea:focus {
 
 .team-table tr:hover td {
   background: rgba(255, 255, 255, 0.02);
+}
+
+/* ========================================= */
+/* LOGIN GATE SECTION                        */
+/* ========================================= */
+.login-gate-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(85vh - 100px);
+  padding: 40px 20px;
+}
+
+.login-gate-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  max-width: 520px;
+  width: 100%;
+  padding: 36px 30px;
+  text-align: center;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-gate-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #38bdf8, #f59e0b);
+}
+
+.gate-icon {
+  font-size: 2.4rem;
+  margin-bottom: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-color);
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  box-shadow: 0 0 20px var(--primary-glow);
+}
+
+.login-gate-card h2 {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.5px;
+  margin-bottom: 4px;
+}
+
+.gate-subtitle {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+.gate-privacy-notice {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 24px;
+  font-size: 0.82rem;
+  color: #bae6fd;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.gate-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* ========================================= */
@@ -1382,3 +1473,482 @@ input:focus, textarea:focus {
 .text-sm { font-size: 0.82rem; }
 .text-dim { color: var(--text-dim); }
 .text-muted { color: var(--text-muted); }
+
+/* ======================================================== */
+/* RESPONSIVE DESIGN PER MOBILE & TABLET                    */
+/* ======================================================== */
+
+/* --- TABLET & SMARTPHONE (< 768px) --- */
+@media (max-width: 768px) {
+  /* Layout generale e container */
+  .main-container {
+    margin: 12px auto 80px auto;
+    padding: 0 12px;
+  }
+
+  .card {
+    padding: 14px;
+    border-radius: var(--radius-md);
+    margin-bottom: 14px;
+  }
+
+  .card-header {
+    margin-bottom: 14px;
+    gap: 8px;
+  }
+
+  .card-header h2, .card-header h3 {
+    font-size: 1.05rem;
+  }
+
+  /* Header */
+  .header-container {
+    padding: 10px 14px;
+  }
+
+  .brand-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 1.3rem;
+  }
+
+  .brand-title {
+    font-size: 1.05rem;
+  }
+
+  .brand-subtitle {
+    font-size: 0.72rem;
+  }
+
+  /* Barra Switcher Squadra / Atleta */
+  .athlete-bar {
+    padding: 8px 12px;
+  }
+
+  .athlete-bar-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .athlete-status {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .athlete-controls {
+    width: 100%;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .view-mode-toggle {
+    width: 100%;
+    display: flex;
+  }
+
+  .btn-toggle {
+    flex: 1;
+    text-align: center;
+    padding: 7px 8px;
+    font-size: 0.76rem;
+  }
+
+  .select-athlete-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .form-select-sm {
+    flex: 1;
+  }
+
+  /* Barra di Navigazione Tab (Stile Bottom/Thumb Friendly) */
+  .main-tabs-nav {
+    position: sticky;
+    top: 57px;
+    z-index: 85;
+    padding: 0 6px;
+    background: rgba(14, 20, 34, 0.96);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .tabs-container {
+    display: flex;
+    justify-content: space-around;
+    gap: 2px;
+    width: 100%;
+  }
+
+  .nav-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 8px 4px 7px 4px;
+    font-size: 0.72rem;
+    min-height: 48px;
+    border-bottom-width: 2px;
+    position: relative;
+  }
+
+  .nav-tab .tab-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+  }
+
+  .nav-tab .tab-badge {
+    position: absolute;
+    top: 2px;
+    right: calc(50% - 24px);
+    font-size: 0.6rem;
+    padding: 1px 4px;
+  }
+
+  /* Toolbar Calendario */
+  .calendar-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .month-selector {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .current-month-display h2 {
+    font-size: 1.1rem;
+    text-align: center;
+  }
+
+  .month-subinfo {
+    text-align: center;
+  }
+
+  .calendar-summary-mini {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .summary-stat {
+    flex: 1;
+    align-items: center;
+    text-align: center;
+    padding: 6px 8px;
+  }
+
+  .summary-stat .stat-number {
+    font-size: 1rem;
+  }
+
+  /* Griglia Calendario per Schermi Ridotti */
+  .calendar-wrapper {
+    padding: 10px 8px;
+  }
+
+  .calendar-weekdays {
+    font-size: 0.72rem;
+    padding-bottom: 6px;
+    margin-bottom: 4px;
+  }
+
+  .calendar-grid {
+    gap: 4px;
+  }
+
+  .calendar-cell {
+    min-height: 68px;
+    padding: 4px;
+  }
+
+  .day-number {
+    font-size: 0.75rem;
+  }
+
+  .cal-workout-pill {
+    font-size: 0.62rem;
+    padding: 2px 4px;
+    border-radius: 4px;
+  }
+
+  /* Nascondi la stringa lunga dei carichi/drills nelle celle per non sballare il layout */
+  .cal-workout-drill {
+    display: none;
+  }
+
+  /* Breakdown Categorie Mese */
+  .breakdown-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .breakdown-item {
+    padding: 8px 12px;
+  }
+
+  /* Tab Diario & Filtri */
+  .history-controls {
+    padding: 12px;
+  }
+
+  .search-and-filters {
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .search-box {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .filter-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .filter-group label {
+    min-width: 70px;
+  }
+
+  .filter-group .form-select {
+    flex: 1;
+  }
+
+  /* Workout Card nel Diario */
+  .workout-card {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .workout-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .workout-date-row {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .workout-categories-badges {
+    width: 100%;
+  }
+
+  .workout-card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .workout-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  /* Form Registrazione Allenamento */
+  .form-card {
+    padding: 16px 12px;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .flex-1, .flex-2, .flex-3 {
+    width: 100%;
+    min-width: 100%;
+  }
+
+  /* Evita auto-zoom fastidioso su iOS Safari con font >= 16px */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="date"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  .quick-snippets {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+    gap: 6px;
+  }
+
+  .btn-snippet {
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 6px 10px;
+    font-size: 0.74rem;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+  }
+
+  /* Tab Squadra */
+  .team-roster-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  /* Modali su Mobile */
+  .modal-overlay {
+    padding: 10px;
+    align-items: flex-end;
+  }
+
+  .modal-content {
+    max-width: 100%;
+    border-radius: 18px 18px 12px 12px;
+    max-height: 88vh;
+  }
+
+  .modal-body {
+    padding: 14px;
+    max-height: 68vh;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-header {
+    padding: 14px 16px;
+  }
+
+  .btn-modal-close {
+    padding: 6px 10px;
+    font-size: 1.8rem;
+  }
+
+  .modal-footer {
+    padding: 12px 16px;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+  }
+
+  /* Toast posizionato al centro in basso */
+  .toast {
+    left: 14px;
+    right: 14px;
+    bottom: 16px;
+    text-align: center;
+    max-width: calc(100vw - 28px);
+    font-size: 0.82rem;
+    padding: 10px 14px;
+  }
+}
+
+/* --- SMARTPHONE ULTRA COMPATTO (< 480px) --- */
+@media (max-width: 480px) {
+  /* Header */
+  .brand-subtitle {
+    display: none; /* Nascondi sottotitolo lungo per risparmiare altezza su display piccoli */
+  }
+
+  .badge-athletics {
+    font-size: 0.6rem;
+    padding: 1px 5px;
+  }
+
+  /* Calendario ultra-compatto a Dot Indicatori (Stile Google Calendar / iOS) */
+  .calendar-wrapper {
+    padding: 6px 4px;
+  }
+
+  .calendar-cell {
+    min-height: 48px;
+    padding: 3px 2px;
+    border-radius: 6px;
+  }
+
+  .day-number {
+    font-size: 0.7rem;
+  }
+
+  .cell-top {
+    justify-content: center;
+    margin-bottom: 2px;
+  }
+
+  .day-workouts-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 3px;
+    margin-top: 2px;
+    max-height: 22px;
+    overflow: hidden;
+  }
+
+  /* Trasforma le pillole in punti colorati per non sforare mai le 7 colonne */
+  .cal-workout-pill {
+    width: 7px;
+    height: 7px;
+    min-width: 7px;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    margin: 1px 0 !important;
+    border: none !important;
+    border-left: none !important;
+  }
+
+  .cal-workout-pill .pill-text,
+  .cal-workout-pill .pill-icon {
+    display: none;
+  }
+
+  /* Touch targets comodi per chip categorie (>= 38px) */
+  .cat-chip-btn {
+    padding: 7px 11px;
+    font-size: 0.76rem;
+  }
+
+  /* Pulsanti touch-friendly */
+  .btn-lg {
+    padding: 11px 18px;
+    font-size: 0.92rem;
+  }
+
+  /* Login Gate Card */
+  .login-gate-card {
+    padding: 24px 14px;
+  }
+
+  .login-gate-card h2 {
+    font-size: 1.25rem;
+  }
+
+  .gate-subtitle {
+    font-size: 0.8rem;
+    margin-bottom: 14px;
+  }
+
+  .gate-privacy-notice {
+    font-size: 0.78rem;
+    padding: 10px 12px;
+    margin-bottom: 18px;
+  }
+}
+
