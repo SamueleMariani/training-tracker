@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Training Tracker | Traccia i tuoi Allenamenti</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Header & Navigation -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <span class="brand-icon">⚡</span>
+        <div>
+          <h1 class="brand-title">Training Tracker</h1>
+          <span class="brand-subtitle">Traccia progressi e carichi</span>
+        </div>
+      </div>
+
+      <div class="auth-box" id="authBox">
+        <!-- Inserito dinamicamente da app.js -->
+        <button id="btnGoogleLogin" class="btn btn-primary btn-sm">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+          </svg>
+          Accedi con Google
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Banner Stato Connessione / Avvisi -->
+  <div id="noticeBanner" class="notice-banner hidden"></div>
+
+  <!-- Main Container -->
+  <main class="main-container">
+    
+    <!-- Sezione Statistiche Rapide -->
+    <section class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-icon">🏋️‍♂️</span>
+        <div class="stat-data">
+          <span class="stat-value" id="statTotalWorkouts">0</span>
+          <span class="stat-label">Allenamenti Totali</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">📅</span>
+        <div class="stat-data">
+          <span class="stat-value" id="statThisMonth">0</span>
+          <span class="stat-label">Questo Mese</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">🔥</span>
+        <div class="stat-data">
+          <span class="stat-value" id="statLastWorkout">-</span>
+          <span class="stat-label">Ultima Sessione</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Layout a Due Colonne: Form Inserimento e Storico -->
+    <div class="content-grid">
+      
+      <!-- Colonna Sinistra: Registra Allenamento -->
+      <section class="card form-card">
+        <div class="card-header">
+          <h2>Nuovo Allenamento</h2>
+          <span class="badge badge-accent">Registra</span>
+        </div>
+
+        <!-- Suggerimenti rapidi per il tipo di sessione -->
+        <div class="quick-tags">
+          <span class="tag" data-title="Push (Petto & Tricipiti)">Push</span>
+          <span class="tag" data-title="Pull (Dorso & Bicipiti)">Pull</span>
+          <span class="tag" data-title="Legs (Gambe & Addome)">Legs</span>
+          <span class="tag" data-title="Full Body">Full Body</span>
+          <span class="tag" data-title="Cardio & Core">Cardio</span>
+        </div>
+
+        <form id="workoutForm">
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="workoutTitle">Nome Sessione / Scheda</label>
+              <input type="text" id="workoutTitle" placeholder="es. Spalle & Braccia" required />
+            </div>
+            <div class="form-group flex-1">
+              <label for="workoutDate">Data</label>
+              <input type="date" id="workoutDate" required />
+            </div>
+            <div class="form-group flex-1">
+              <label for="workoutDuration">Durata (min)</label>
+              <input type="number" id="workoutDuration" placeholder="60" min="5" max="360" />
+            </div>
+          </div>
+
+          <!-- Sezione Esercizi Dinamici -->
+          <div class="exercises-container">
+            <div class="exercises-header">
+              <h3>Esercizi</h3>
+              <button type="button" id="btnAddExercise" class="btn btn-secondary btn-sm">
+                + Aggiungi Esercizio
+              </button>
+            </div>
+
+            <div id="exerciseList" class="exercise-list">
+              <!-- Esercizi renderizzati via JavaScript -->
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="workoutNotes">Note Generali (opzionale)</label>
+            <textarea id="workoutNotes" rows="2" placeholder="Sensazioni, recuperi, obiettivi raggiunti..."></textarea>
+          </div>
+
+          <button type="submit" id="btnSaveWorkout" class="btn btn-primary btn-block">
+            💾 Salva Allenamento
+          </button>
+        </form>
+      </section>
+
+      <!-- Colonna Destra: Storico Allenamenti -->
+      <section class="card history-card">
+        <div class="card-header">
+          <h2>Storico Allenamenti</h2>
+          <span class="badge" id="historyCountBadge">0 sessioni</span>
+        </div>
+
+        <!-- Ricerca / Filtro -->
+        <div class="search-box">
+          <input type="text" id="searchInput" placeholder="🔍 Cerca per scheda o esercizio..." />
+        </div>
+
+        <!-- Lista Workout -->
+        <div id="workoutsHistoryList" class="history-list">
+          <div class="empty-state">
+            <span class="empty-icon">📋</span>
+            <p>Nessun allenamento registrato.</p>
+            <small>Compila il form a sinistra per salvare la tua prima sessione!</small>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Toast Notifiche -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Script Firebase & App -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
