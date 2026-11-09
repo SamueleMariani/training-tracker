@@ -191,6 +191,7 @@ let allWorkouts = [];
 let selectedCategoriesForNewWorkout = new Set();
 let currentCalendarMonth = new Date(2026, 10, 1); // Novembre 2026 (dove partono i dati Excel)
 let unsubscribeFirestore = null;
+let editingWorkoutId = null; // ID dell'allenamento attualmente in fase di modifica
 
 // --- 5. RIFERIMENTI DOM ---
 const authBox = document.getElementById("authBox");
@@ -204,6 +205,13 @@ const athleteSelectDropdown = document.getElementById("athleteSelectDropdown");
 const btnViewSelectedAthlete = document.getElementById("btnViewSelectedAthlete");
 const btnViewAllAthletes = document.getElementById("btnViewAllAthletes");
 const formAthleteTarget = document.getElementById("formAthleteTarget");
+const formCardTitle = document.getElementById("formCardTitle");
+const formCardSubtitle = document.getElementById("formCardSubtitle");
+const formCardBadge = document.getElementById("formCardBadge");
+const formAuthorAvatar = document.getElementById("formAuthorAvatar");
+const formAuthorName = document.getElementById("formAuthorName");
+const formAuthorRoleBadge = document.getElementById("formAuthorRoleBadge");
+const btnSaveWorkout = document.getElementById("btnSaveWorkout");
 
 const noticeBanner = document.getElementById("noticeBanner");
 const navTabs = document.querySelectorAll(".nav-tab");
@@ -656,9 +664,8 @@ function updateAthleteDropdowns() {
   if (!athleteSelectDropdown) return;
 
   athleteSelectDropdown.innerHTML = "";
-  if (formAthleteTarget) formAthleteTarget.innerHTML = "";
 
-  // Roster pulito: Allenatore, Samuele (Admin & Atleta), e gli atleti registrati
+  // Roster pulito per il visualizzatore: Allenatore, Samuele (Admin & Atleta), e gli atleti registrati
   const coachLabel = (coachInfo && coachInfo.name) ? `📋 ${coachInfo.name} (Coach)` : `📋 Allenatore (Dati da Excel)`;
   
   const entries = [
@@ -681,17 +688,56 @@ function updateAthleteDropdowns() {
     opt1.value = e.id;
     opt1.textContent = e.label;
     athleteSelectDropdown.appendChild(opt1);
-
-    if (formAthleteTarget) {
-      const opt2 = document.createElement("option");
-      opt2.value = e.id;
-      opt2.textContent = e.label;
-      formAthleteTarget.appendChild(opt2);
-    }
   });
 
   athleteSelectDropdown.value = activeAthleteId;
-  if (formAthleteTarget) formAthleteTarget.value = activeAthleteId;
+  updateFormAuthorUI();
+}
+
+// Aggiorna l'autore fisso nel form (ognuno carica solo per sé)
+function updateFormAuthorUI() {
+  if (!formAuthorName) return;
+
+  if (currentUser) {
+    let avatar = "🏃";
+    let roleLabel = "Atleta";
+    let roleClass = "atleta";
+    let displayName = currentUser.displayName || currentUser.email.split("@")[0];
+
+    const isCoach = (appRole === "allenatore" || (coachInfo && coachInfo.uid === currentUser.uid));
+    const isSamuele = (appRole === "admin" || (currentUser.email && currentUser.email.toLowerCase().includes("samuele")));
+
+    if (isCoach) {
+      avatar = "📋";
+      roleLabel = "Allenatore";
+      roleClass = "allenatore";
+      displayName = `${displayName} (Coach)`;
+      if (formAthleteTarget) formAthleteTarget.value = (coachInfo && coachInfo.uid) ? coachInfo.uid : "allenatore";
+    } else if (isSamuele) {
+      avatar = "👑";
+      roleLabel = "Admin & Atleta";
+      roleClass = "admin";
+      displayName = `${displayName}`;
+      if (formAthleteTarget) formAthleteTarget.value = currentUser.uid;
+    } else {
+      if (formAthleteTarget) formAthleteTarget.value = currentUser.uid;
+    }
+
+    if (formAuthorAvatar) formAuthorAvatar.textContent = avatar;
+    formAuthorName.textContent = displayName;
+    if (formAuthorRoleBadge) {
+      formAuthorRoleBadge.textContent = roleLabel;
+      formAuthorRoleBadge.className = `role-badge ${roleClass}`;
+    }
+  } else {
+    if (formAuthorAvatar) formAuthorAvatar.textContent = "🔒";
+    formAuthorName.textContent = "Accedi per caricare o modificare i tuoi allenamenti";
+    if (formAuthorRoleBadge) {
+      formAuthorRoleBadge.textContent = "Non loggato";
+      formAuthorRoleBadge.className = "role-badge";
+    }
+    if (formAthleteTarget) formAthleteTarget.value = "";
+  }
 }
 
 function updateAthleteSwitcherUI() {
@@ -1005,6 +1051,36 @@ function renderWorkoutsFeed() {
   });
 }
 
+// Verifica se l'allenamento appartiene all'utente correntemente autenticato
+function isWorkoutOwnedByCurrentUser(w) {
+  if (!currentUser) return false;
+
+  // Match diretto su UID
+  if (w.userId && w.userId === currentUser.uid) return true;
+
+  // Match diretto su Email (case-insensitive)
+  if (w.userEmail && currentUser.email && w.userEmail.toLowerCase() === currentUser.email.toLowerCase()) {
+    return true;
+  }
+
+  // Proprietà Allenatore per gli allenamenti storici da Excel ("allenatore")
+  const isCoach = (appRole === "allenatore") || 
+                  (coachInfo && coachInfo.claimed && coachInfo.uid === currentUser.uid) ||
+                  (registeredUsers[currentUser.uid] && registeredUsers[currentUser.uid].role === "allenatore");
+  if (isCoach && (w.userId === "allenatore" || (w.userEmail && w.userEmail.includes("allenatore")))) {
+    return true;
+  }
+
+  // Proprietà Samuele Admin per le sessioni iniziali con ID "samuele_admin"
+  const isSamuele = (currentUser.email && currentUser.email.toLowerCase().includes("samuele")) ||
+                    (currentUser.displayName && currentUser.displayName.toLowerCase().includes("samuele"));
+  if (isSamuele && (w.userId === "samuele_admin" || (w.userEmail && w.userEmail.includes("samuele")))) {
+    return true;
+  }
+
+  return false;
+}
+
 function createWorkoutCard(w) {
   const card = document.createElement("div");
   card.className = "workout-card";
@@ -1024,6 +1100,23 @@ function createWorkoutCard(w) {
   }).join("");
 
   const athleteName = w.userName || (registeredUsers[w.userId] ? registeredUsers[w.userId].name : "Atleta");
+  const canManage = isWorkoutOwnedByCurrentUser(w);
+
+  let actionsHtml = "";
+  if (canManage) {
+    actionsHtml = `
+      <div class="workout-actions">
+        <button type="button" class="btn-action-edit" data-id="${w.id}" title="Modifica questa sessione">✏️ Modifica</button>
+        <button type="button" class="btn-action-del" data-id="${w.id}" title="Elimina questa sessione">🗑️ Elimina</button>
+      </div>
+    `;
+  } else {
+    actionsHtml = `
+      <div class="workout-actions">
+        <span class="text-dim text-xs" title="Puoi visualizzare questa sessione, ma solo l'autore può modificarla o eliminarla">🔒 Solo lettura</span>
+      </div>
+    `;
+  }
 
   card.innerHTML = `
     <div class="workout-card-header">
@@ -1054,20 +1147,102 @@ function createWorkoutCard(w) {
 
     <div class="workout-card-footer">
       <span class="workout-author">👤 ${escapeHtml(athleteName)}</span>
-      <div class="workout-actions">
-        <button class="btn-action-del" data-id="${w.id}">🗑️ Elimina</button>
-      </div>
+      ${actionsHtml}
     </div>
   `;
 
-  const delBtn = card.querySelector(".btn-action-del");
-  delBtn.addEventListener("click", () => deleteWorkout(w.id));
+  if (canManage) {
+    const editBtn = card.querySelector(".btn-action-edit");
+    if (editBtn) {
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        startEditWorkout(w);
+      });
+    }
+
+    const delBtn = card.querySelector(".btn-action-del");
+    if (delBtn) {
+      delBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteWorkout(w.id);
+      });
+    }
+  }
 
   return card;
 }
 
+// Avvia la modalità di modifica di un proprio allenamento
+function startEditWorkout(w) {
+  if (!currentUser) {
+    showToast("Devi effettuare l'accesso per modificare questo allenamento!", "error");
+    openAuthModal();
+    return;
+  }
+
+  if (!isWorkoutOwnedByCurrentUser(w)) {
+    showToast("Puoi modificare solo i tuoi allenamenti!", "error");
+    return;
+  }
+
+  if (dayDetailModal && !dayDetailModal.classList.contains("hidden")) {
+    dayDetailModal.classList.add("hidden");
+  }
+
+  editingWorkoutId = w.id;
+
+  // Passa al tab di registrazione
+  const tabNewBtn = document.querySelector('[data-tab="tabNew"]');
+  if (tabNewBtn) tabNewBtn.click();
+
+  // Aggiorna interfaccia form
+  if (formCardTitle) formCardTitle.textContent = "✏️ Modifica Allenamento";
+  if (formCardSubtitle) formCardSubtitle.textContent = "Modifica i dati della tua sessione e clicca su Salva Modifiche.";
+  if (formCardBadge) {
+    formCardBadge.textContent = "Modifica Sessione";
+    formCardBadge.className = "badge badge-primary";
+  }
+  if (btnSaveWorkout) {
+    btnSaveWorkout.innerHTML = "💾 Salva Modifiche";
+  }
+  if (btnResetForm) {
+    btnResetForm.textContent = "✕ Annulla Modifica";
+  }
+
+  // Popola campi con i dati esistenti
+  workoutDate.value = w.date || "";
+  workoutTitle.value = w.title || "";
+  workoutSpecifiche.value = w.specifiche || "";
+  workoutTempiCarichi.value = w.tempiCarichi || "";
+  workoutNotes.value = w.notes || "";
+
+  // Seleziona categorie esistenti
+  selectedCategoriesForNewWorkout = new Set(w.categories || ["velocita"]);
+  renderCategoryChips();
+  updateCategorySelectionNotice();
+
+  if (formCardTitle) {
+    formCardTitle.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  showToast(`Modifica attiva per la sessione del ${w.date}`, "info");
+}
+
 async function deleteWorkout(workoutId) {
-  if (!confirm("Sei sicuro di voler eliminare questo allenamento?")) return;
+  if (!currentUser) {
+    showToast("Devi effettuare l'accesso per eliminare un allenamento!", "error");
+    openAuthModal();
+    return;
+  }
+
+  const w = allWorkouts.find(item => item.id === workoutId);
+  if (!w) return;
+
+  if (!isWorkoutOwnedByCurrentUser(w)) {
+    showToast("Non puoi eliminare gli allenamenti di altri atleti!", "error");
+    return;
+  }
+
+  if (!confirm(`Sei sicuro di voler eliminare l'allenamento del ${w.date}?`)) return;
 
   try {
     const docRef = doc(db, "workouts", workoutId);
@@ -1076,9 +1251,14 @@ async function deleteWorkout(workoutId) {
     console.warn("Eliminazione Firestore:", err);
   }
 
-  allWorkouts = allWorkouts.filter(w => w.id !== workoutId);
+  allWorkouts = allWorkouts.filter(item => item.id !== workoutId);
   saveLocalWorkoutsCache();
   refreshActiveViews();
+
+  if (dayDetailModal && !dayDetailModal.classList.contains("hidden")) {
+    dayDetailModal.classList.add("hidden");
+  }
+
   showToast("Allenamento eliminato con successo", "success");
 }
 
@@ -1144,58 +1324,135 @@ function updateCategorySelectionNotice() {
   }
 }
 
-// Invio form
+// Invio form (supporta sia inserimento di un proprio allenamento che modifica di una propria sessione)
 workoutForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+
+  if (!currentUser) {
+    showToast("Devi effettuare l'accesso per salvare o modificare un allenamento!", "error");
+    openAuthModal();
+    return;
+  }
 
   if (selectedCategoriesForNewWorkout.size === 0) {
     showToast("Seleziona almeno una categoria per l'allenamento!", "error");
     return;
   }
 
-  const targetAthlete = formAthleteTarget ? formAthleteTarget.value : activeAthleteId;
-  let targetUserObj = registeredUsers[targetAthlete];
-  if (!targetUserObj) {
-    targetUserObj = { id: targetAthlete, name: "Atleta", email: "atleta@trainingtracker.it" };
+  // Determina l'identità dell'autore (rigorosamente l'utente autenticato)
+  const isCoach = (appRole === "allenatore" || (coachInfo && coachInfo.uid === currentUser.uid));
+  const isSamuele = (appRole === "admin" || (currentUser.email && currentUser.email.toLowerCase().includes("samuele")));
+
+  let authorId = currentUser.uid;
+  let authorName = currentUser.displayName || currentUser.email.split("@")[0];
+  let authorEmail = currentUser.email || "";
+
+  if (isCoach) {
+    authorId = (coachInfo && coachInfo.uid) ? coachInfo.uid : "allenatore";
+    authorName = currentUser.displayName || "Allenatore";
+    authorEmail = currentUser.email || "allenatore@atletica.it";
+  } else if (isSamuele) {
+    authorId = currentUser.uid;
+    authorName = currentUser.displayName || "Samuele";
   }
 
-  const newWorkout = {
-    id: `workout_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    userId: targetAthlete,
-    userName: targetUserObj.name,
-    userEmail: targetUserObj.email,
-    date: workoutDate.value,
-    title: (workoutTitle.value || "").trim(),
-    categories: Array.from(selectedCategoriesForNewWorkout),
-    specifiche: (workoutSpecifiche.value || "").trim(),
-    tempiCarichi: (workoutTempiCarichi.value || "").trim(),
-    notes: (workoutNotes.value || "").trim(),
-    createdAt: new Date().toISOString()
-  };
+  if (editingWorkoutId) {
+    // --- AGGIORNAMENTO DI UNA SESSIONE PROPRIA ---
+    const existingIndex = allWorkouts.findIndex(w => w.id === editingWorkoutId);
+    const existingWorkout = allWorkouts[existingIndex];
 
-  try {
-    const docRef = doc(db, "workouts", newWorkout.id);
-    await setDoc(docRef, {
-      ...newWorkout,
-      createdAt: serverTimestamp()
-    });
-  } catch (err) {
-    console.warn("Salvataggio Firestore:", err);
+    if (!existingWorkout || !isWorkoutOwnedByCurrentUser(existingWorkout)) {
+      showToast("Non hai i permessi per modificare questo allenamento!", "error");
+      return;
+    }
+
+    const updatedWorkout = {
+      ...existingWorkout,
+      date: workoutDate.value,
+      title: (workoutTitle.value || "").trim(),
+      categories: Array.from(selectedCategoriesForNewWorkout),
+      specifiche: (workoutSpecifiche.value || "").trim(),
+      tempiCarichi: (workoutTempiCarichi.value || "").trim(),
+      notes: (workoutNotes.value || "").trim(),
+      updatedAt: new Date().toISOString()
+    };
+
+    try {
+      const docRef = doc(db, "workouts", editingWorkoutId);
+      await setDoc(docRef, {
+        ...updatedWorkout,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (err) {
+      console.warn("Aggiornamento Firestore:", err);
+    }
+
+    allWorkouts[existingIndex] = updatedWorkout;
+    saveLocalWorkoutsCache();
+
+    showToast("Allenamento modificato con successo! ⚡", "success");
+    resetWorkoutForm();
+    refreshActiveViews();
+
+    const tabLogBtn = document.querySelector('[data-tab="tabLog"]');
+    if (tabLogBtn) tabLogBtn.click();
+  } else {
+    // --- NUOVO ALLENAMENTO (OGNUNO CARICA ESCLUSIVAMENTE PER SÉ) ---
+    const newWorkout = {
+      id: `workout_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      userId: authorId,
+      userName: authorName,
+      userEmail: authorEmail,
+      date: workoutDate.value,
+      title: (workoutTitle.value || "").trim(),
+      categories: Array.from(selectedCategoriesForNewWorkout),
+      specifiche: (workoutSpecifiche.value || "").trim(),
+      tempiCarichi: (workoutTempiCarichi.value || "").trim(),
+      notes: (workoutNotes.value || "").trim(),
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      const docRef = doc(db, "workouts", newWorkout.id);
+      await setDoc(docRef, {
+        ...newWorkout,
+        createdAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.warn("Salvataggio Firestore:", err);
+    }
+
+    allWorkouts.unshift(newWorkout);
+    saveLocalWorkoutsCache();
+
+    showToast("Allenamento registrato con successo! ⚡", "success");
+    resetWorkoutForm();
+    refreshActiveViews();
+    document.querySelector('[data-tab="tabCalendar"]').click();
   }
-
-  allWorkouts.unshift(newWorkout);
-  saveLocalWorkoutsCache();
-
-  showToast("Allenamento registrato con successo! ⚡", "success");
-  resetWorkoutForm();
-  document.querySelector('[data-tab="tabCalendar"]').click();
 });
 
 function resetWorkoutForm() {
+  editingWorkoutId = null;
+
+  if (formCardTitle) formCardTitle.textContent = "Registra Nuovo Allenamento";
+  if (formCardSubtitle) formCardSubtitle.textContent = "Compila data, categorie (anche multiple), specifiche e tempi.";
+  if (formCardBadge) {
+    formCardBadge.textContent = "Nuova Sessione";
+    formCardBadge.className = "badge badge-accent";
+  }
+  if (btnSaveWorkout) {
+    btnSaveWorkout.innerHTML = "💾 Salva Allenamento";
+  }
+  if (btnResetForm) {
+    btnResetForm.textContent = "Annulla";
+  }
+
   workoutForm.reset();
   workoutDate.valueAsDate = new Date();
   selectedCategoriesForNewWorkout.clear();
   renderCategoryChips();
+  updateCategorySelectionNotice();
 }
 
 btnResetForm.addEventListener("click", resetWorkoutForm);
@@ -1273,6 +1530,11 @@ function renderTeamOverview() {
 }
 
 btnSyncExcelData.addEventListener("click", () => {
+  const isCoachOrAdmin = (appRole === "admin" || appRole === "allenatore" || (coachInfo && coachInfo.uid === (currentUser && currentUser.uid)));
+  if (!isCoachOrAdmin) {
+    showToast("Solo l'Allenatore o l'Admin possono risincronizzare i dati Excel!", "error");
+    return;
+  }
   if (confirm("Vuoi risincronizzare tutti gli allenamenti originali dell'allenatore dal file Excel?")) {
     seedCoachWorkoutsToFirestore(true);
   }

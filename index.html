@@ -256,20 +256,22 @@
         <div class="card form-card">
           <div class="card-header">
             <div>
-              <h2>Registra Nuovo Allenamento</h2>
-              <p class="text-dim text-sm">Compila data, categorie (anche multiple), specifiche e tempi.</p>
+              <h2 id="formCardTitle">Registra Nuovo Allenamento</h2>
+              <p class="text-dim text-sm" id="formCardSubtitle">Compila data, categorie (anche multiple), specifiche e tempi.</p>
             </div>
-            <span class="badge badge-accent">Nuova Sessione</span>
+            <span class="badge badge-accent" id="formCardBadge">Nuova Sessione</span>
           </div>
 
           <form id="workoutForm">
             <div class="form-row">
               <div class="form-group flex-2" id="formGroupAthleteTarget">
-                <label for="formAthleteTarget">Atleta / Destinatario</label>
-                <select id="formAthleteTarget" class="form-select">
-                  <option value="allenatore">📋 Allenatore</option>
-                  <option value="samuele_admin">👑 Samuele (Admin & Atleta)</option>
-                </select>
+                <label>Atleta / Autore Sessione</label>
+                <div class="locked-author-box" id="lockedAuthorBox">
+                  <span class="locked-author-avatar" id="formAuthorAvatar">🏃</span>
+                  <span class="locked-author-name" id="formAuthorName">Accesso richiesto</span>
+                  <span class="role-badge" id="formAuthorRoleBadge">Ospite</span>
+                </div>
+                <input type="hidden" id="formAthleteTarget" value="" />
               </div>
 
               <div class="form-group flex-2">
