@@ -3,28 +3,419 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Training Tracker | Traccia i tuoi Allenamenti</title>
+  <title>Training Tracker | Atletica & Velocità</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- Header & Navigation -->
+  <!-- Header Principale -->
   <header class="app-header">
     <div class="header-container">
       <div class="brand">
         <span class="brand-icon">⚡</span>
         <div>
-          <h1 class="brand-title">Training Tracker</h1>
-          <span class="brand-subtitle">Traccia progressi e carichi</span>
+          <h1 class="brand-title">Training Tracker <span class="badge-athletics">Atletica</span></h1>
+          <span class="brand-subtitle">Velocità • Staffette • Prove Multiple • Monitoraggio Squadra</span>
         </div>
       </div>
 
-      <div class="auth-box" id="authBox">
-        <!-- Inserito dinamicamente da app.js -->
-        <button id="btnGoogleLogin" class="btn btn-primary btn-sm">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+      <div class="header-right">
+        <!-- Indicatore Ruolo e Profilo Utente -->
+        <div id="authBox" class="auth-box">
+          <!-- Popolato dinamicamente da app.js -->
+          <button id="btnOpenAuthModal" class="btn btn-primary btn-sm">
+            🔑 Accedi / Registrati
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Barra Switcher Squadra / Atleta (visibile ad Admin e Allenatore) -->
+  <section id="athleteSwitcherBar" class="athlete-bar">
+    <div class="athlete-bar-container">
+      <div class="athlete-status">
+        <span class="status-label">Stai visualizzando la scheda di:</span>
+        <div class="active-athlete-pill" id="activeAthletePill">
+          <span class="athlete-avatar-mini" id="activeAthleteAvatar">📋</span>
+          <span class="athlete-name-active" id="activeAthleteName">Allenatore</span>
+          <span class="role-badge" id="activeAthleteRoleBadge">Allenatore</span>
+        </div>
+      </div>
+
+      <div class="athlete-controls">
+        <div class="view-mode-toggle" id="viewModeToggleGroup">
+          <button type="button" class="btn-toggle active" id="btnViewSelectedAthlete" title="Visualizza scheda atleta selezionato">
+            👤 Scheda Atleta
+          </button>
+          <button type="button" class="btn-toggle" id="btnViewAllAthletes" title="Visualizza panoramica di tutta la squadra">
+            👥 Tutta la Squadra
+          </button>
+        </div>
+
+        <div class="select-athlete-wrapper">
+          <label for="athleteSelectDropdown">Cambia atleta:</label>
+          <select id="athleteSelectDropdown" class="form-select-sm">
+            <option value="allenatore">📋 Allenatore (Dati da Excel)</option>
+            <option value="samuele_admin">👑 Samuele (Admin & Atleta)</option>
+            <option value="marco_atleta">🏃 Marco (Atleta)</option>
+            <option value="giulia_atleta">🏃 Giulia (Atleta)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Banner Avvisi / Notifiche di Stato -->
+  <div id="noticeBanner" class="notice-banner hidden"></div>
+
+  <!-- Barra di Navigazione Tab Principali -->
+  <nav class="main-tabs-nav">
+    <div class="tabs-container">
+      <button class="nav-tab active" data-tab="tabCalendar">
+        <span class="tab-icon">📅</span>
+        <span class="tab-label">Panoramica Mensile</span>
+      </button>
+      <button class="nav-tab" data-tab="tabLog">
+        <span class="tab-icon">📝</span>
+        <span class="tab-label">Diario Allenamenti</span>
+        <span class="tab-badge" id="tabCountBadge">0</span>
+      </button>
+      <button class="nav-tab" data-tab="tabNew">
+        <span class="tab-icon">➕</span>
+        <span class="tab-label">Registra Allenamento</span>
+      </button>
+      <button class="nav-tab" id="tabTeamNavBtn" data-tab="tabTeam">
+        <span class="tab-icon">👥</span>
+        <span class="tab-label">Squadra & Statistiche</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Contenitore Principale -->
+  <main class="main-container">
+
+    <!-- ========================================== -->
+    <!-- TAB 1: PANORAMICA MENSILE (CALENDARIO)     -->
+    <!-- ========================================== -->
+    <section id="tabCalendar" class="tab-pane active">
+      <!-- Toolbar Mese & Filtri -->
+      <div class="calendar-toolbar card">
+        <div class="month-selector">
+          <button id="btnPrevMonth" class="btn btn-secondary btn-icon" title="Mese precedente">‹</button>
+          <div class="current-month-display">
+            <h2 id="calendarMonthTitle">Novembre 2026</h2>
+            <span class="month-subinfo" id="calendarAthleteSubtitle">Scheda di: Allenatore</span>
+          </div>
+          <button id="btnNextMonth" class="btn btn-secondary btn-icon" title="Mese successivo">›</button>
+          <button id="btnTodayMonth" class="btn btn-secondary btn-sm">Oggi</button>
+        </div>
+
+        <div class="calendar-summary-mini">
+          <div class="summary-stat">
+            <span class="stat-number" id="calStatTotal">0</span>
+            <span class="stat-text">Sedute nel mese</span>
+          </div>
+          <div class="summary-stat">
+            <span class="stat-number" id="calStatTopCategory">-</span>
+            <span class="stat-text">Categoria principale</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calendario Grid -->
+      <div class="calendar-wrapper card">
+        <div class="calendar-weekdays">
+          <div>Lun</div>
+          <div>Mar</div>
+          <div>Mer</div>
+          <div>Gio</div>
+          <div>Ven</div>
+          <div>Sab</div>
+          <div>Dom</div>
+        </div>
+        <div id="calendarGrid" class="calendar-grid">
+          <!-- Giorni generati dinamicamente da app.js -->
+        </div>
+      </div>
+
+      <!-- Breakdown Categorie del Mese -->
+      <div class="monthly-breakdown card">
+        <div class="card-header">
+          <h3>📊 Distribuzione Allenamenti del Mese</h3>
+          <span class="badge" id="breakdownMonthLabel">Novembre 2026</span>
+        </div>
+        <div id="categoryBreakdownBars" class="breakdown-grid">
+          <!-- Barre e percentuali per categoria renderizzate via JS -->
+        </div>
+      </div>
+
+      <!-- Legenda Categorie -->
+      <div class="categories-legend card">
+        <div class="card-header">
+          <h4>🏷️ Legenda Categorie Atletica</h4>
+          <span class="text-dim text-xs">I colori corrispondono al foglio di calcolo</span>
+        </div>
+        <div class="legend-chips-container" id="legendChipsContainer">
+          <!-- Categorie inserite dinamicamente -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: DIARIO ALLENAMENTI (FEED LISTA)     -->
+    <!-- ========================================== -->
+    <section id="tabLog" class="tab-pane">
+      <div class="history-controls card">
+        <div class="search-and-filters">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" placeholder="Cerca per specifiche (es. 4x300, 60m), tempi o note..." />
+            <button id="btnClearSearch" class="btn-clear hidden">✕</button>
+          </div>
+
+          <div class="filter-group">
+            <label for="filterCategory">Filtra Categoria:</label>
+            <select id="filterCategory" class="form-select">
+              <option value="ALL">Tutte le categorie</option>
+              <option value="velocita">⚡ Velocità</option>
+              <option value="accelerazioni">🚀 Accelerazioni (Rosa)</option>
+              <option value="ritmica">🎵 Ritmica (Turchese)</option>
+              <option value="lattacido">🔥 Lattacido</option>
+              <option value="soglia">⏱️ Soglia</option>
+              <option value="rv">🏃 RV (Resistenza Veloce)</option>
+              <option value="forza">🏋️ Forza</option>
+              <option value="balzi">🦘 Balzi</option>
+              <option value="fondo_lento">👟 Fondo Lento</option>
+              <option value="sci">⛷️ Sci (Allenatore)</option>
+              <option value="nuoto">🏊 Nuoto (Jolly Allenatore)</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="sortOrder">Ordinamento:</label>
+            <select id="sortOrder" class="form-select">
+              <option value="desc">Data decrescente (più recenti prima)</option>
+              <option value="asc">Data crescente (cronologico)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card workouts-feed-card">
+        <div class="card-header">
+          <h2>Registro Sessioni di Allenamento</h2>
+          <span class="badge" id="workoutsFilteredCount">0 allenamenti</span>
+        </div>
+
+        <div id="workoutsHistoryList" class="history-list">
+          <!-- Lista allenamenti renderizzata via JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: REGISTRA NUOVO ALLENAMENTO          -->
+    <!-- ========================================== -->
+    <section id="tabNew" class="tab-pane">
+      <div class="card form-card">
+        <div class="card-header">
+          <div>
+            <h2>Registra Nuovo Allenamento</h2>
+            <p class="text-dim text-sm">Compila data, categorie (anche multiple), specifiche e tempi.</p>
+          </div>
+          <span class="badge badge-accent">Nuova Sessione</span>
+        </div>
+
+        <form id="workoutForm">
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="formAthleteTarget">Atleta / Destinatario</label>
+              <select id="formAthleteTarget" class="form-select">
+                <option value="allenatore">📋 Allenatore</option>
+                <option value="samuele_admin">👑 Samuele (Admin & Atleta)</option>
+                <option value="marco_atleta">🏃 Marco (Atleta)</option>
+                <option value="giulia_atleta">🏃 Giulia (Atleta)</option>
+              </select>
+            </div>
+
+            <div class="form-group flex-2">
+              <label for="workoutDate">Data Allenamento *</label>
+              <input type="date" id="workoutDate" required />
+            </div>
+
+            <div class="form-group flex-3">
+              <label for="workoutTitle">Titolo / Sintesi Sessione (opzionale)</label>
+              <input type="text" id="workoutTitle" placeholder="es. Test 60m + 100m, Seduta soglia, ..." />
+            </div>
+          </div>
+
+          <!-- SELEZIONE MULTI-CATEGORIA CON PILLOLE COLORATE -->
+          <div class="form-group">
+            <div class="label-with-hint">
+              <label>Categorie Allenamento *</label>
+              <span class="form-hint">Un allenamento può avere più categorie contemporaneamente. Clicca per attivare/disattivare:</span>
+            </div>
+            
+            <div class="category-selector-chips" id="categoryChipsPicker">
+              <!-- Renderizzato dinamicamente con colori dedicati per ciascuna categoria -->
+            </div>
+            <div id="selectedCategoriesNotice" class="selected-categories-notice text-xs text-muted">
+              Nessuna categoria selezionata. Selezionane almeno una.
+            </div>
+          </div>
+
+          <!-- SPECIFICHE DELL'ALLENAMENTO -->
+          <div class="form-group">
+            <div class="label-with-hint">
+              <label for="workoutSpecifiche">Specifiche Allenamento *</label>
+              <span class="form-hint">Serie, ripetute, recuperi (es. 100/2-200/3-300/5 oppure 3x(4x300/2)/5)</span>
+            </div>
+            <textarea id="workoutSpecifiche" rows="3" class="font-mono" placeholder="es. (4x60/4)/6+4x100/5 oppure 3x (4x300/2)/5" required></textarea>
+            
+            <!-- Quick Snippet Buttons -->
+            <div class="quick-snippets">
+              <span class="snippet-label">Modelli rapidi:</span>
+              <button type="button" class="btn-snippet" data-snippet="3x (4x300/2)/5">3x (4x300/2)/5</button>
+              <button type="button" class="btn-snippet" data-snippet="(4x60/4)/6+4x100/5">(4x60/4)/6+4x100/5</button>
+              <button type="button" class="btn-snippet" data-snippet="100/2-200/3-300/5+300/3-200/4-100">Piramide Lattacida</button>
+              <button type="button" class="btn-snippet" data-snippet="5x30m partenze blocchi + 3x60m">Blocchi & Sprint</button>
+              <button type="button" class="btn-snippet" data-snippet="Squat 4x6 @ 80% + Panca 4x6 + Balzi 4x5">Forza & Balzi</button>
+            </div>
+          </div>
+
+          <!-- TEMPI E CARICHI -->
+          <div class="form-group">
+            <div class="label-with-hint">
+              <label for="workoutTempiCarichi">Tempi / Carichi / Riscontri Cronometrici</label>
+              <span class="form-hint">Inserisci i riscontri dei passaggi, cronometri o carichi in kg</span>
+            </div>
+            <textarea id="workoutTempiCarichi" rows="3" class="font-mono" placeholder="es. 15.5 - 32.0 - 50.5 - 32.3 - 33.6 - 14.7 oppure 7.9 - 7.7 - 7.9 - 7.7"></textarea>
+          </div>
+
+          <!-- NOTE E SENSAZIONI -->
+          <div class="form-group">
+            <label for="workoutNotes">Note, Condizioni & Sensazioni</label>
+            <textarea id="workoutNotes" rows="2" placeholder="Sensazioni, vento, scarpe chiodate, recupero..."></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" id="btnResetForm" class="btn btn-secondary">
+              Annulla / Svuota
+            </button>
+            <button type="submit" id="btnSaveWorkout" class="btn btn-primary btn-lg">
+              💾 Salva Allenamento
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: SQUADRA & STATISTICHE (ADMIN/COACH)  -->
+    <!-- ========================================== -->
+    <section id="tabTeam" class="tab-pane">
+      <div class="card team-overview-card">
+        <div class="card-header">
+          <div>
+            <h2>Panoramica Squadra & Atleti</h2>
+            <p class="text-dim text-sm">Monitoraggio sedute, stato atleti e sincronizzazione registro.</p>
+          </div>
+          <button id="btnSyncExcelData" class="btn btn-secondary btn-sm" title="Ripristina o sincronizza gli allenamenti originali dell'allenatore">
+            🔄 Sincronizza Dati Allenatore da Excel
+          </button>
+        </div>
+
+        <!-- Roster Atleti Card Grid -->
+        <div class="team-roster-grid" id="teamRosterGrid">
+          <!-- Popolato dinamicamente -->
+        </div>
+
+        <!-- Tabella Comparativa Attività Mese -->
+        <div class="team-comparison-table-wrapper">
+          <h3 class="section-subtitle">Confronto Allenamenti Mese Corrente</h3>
+          <div class="table-responsive">
+            <table class="team-table" id="teamComparisonTable">
+              <thead>
+                <tr>
+                  <th>Atleta</th>
+                  <th>Ruolo</th>
+                  <th>Totale Sedute</th>
+                  <th>Sedute Questo Mese</th>
+                  <th>Ultimo Allenamento</th>
+                  <th>Azione</th>
+                </tr>
+              </thead>
+              <tbody id="teamComparisonTbody">
+                <!-- Generato da JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================== -->
+  <!-- MODALE: AUTENTICAZIONE (EMAIL & GOOGLE)    -->
+  <!-- ========================================== -->
+  <div id="authModal" class="modal-overlay hidden">
+    <div class="modal-content auth-modal-box">
+      <div class="modal-header">
+        <h3 id="authModalTitle">Accesso Training Tracker</h3>
+        <button type="button" id="btnCloseAuthModal" class="btn-modal-close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Switch Tab Login / Registrati -->
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab-btn active" id="tabBtnLogin">Accedi</button>
+          <button type="button" class="auth-tab-btn" id="tabBtnRegister">Registrati</button>
+        </div>
+
+        <div id="authErrorMsg" class="auth-error-alert hidden"></div>
+
+        <!-- Form Email & Password -->
+        <form id="emailAuthForm">
+          <div class="form-group" id="groupRegisterName" style="display: none;">
+            <label for="authDisplayName">Nome Completo / Atleta</label>
+            <input type="text" id="authDisplayName" placeholder="es. Samuele Mariani" />
+          </div>
+
+          <div class="form-group" id="groupRegisterRole" style="display: none;">
+            <label for="authRoleSelect">Ruolo</label>
+            <select id="authRoleSelect" class="form-select">
+              <option value="atleta">🏃 Atleta</option>
+              <option value="admin">👑 Admin & Atleta</option>
+              <option value="allenatore">📋 Allenatore</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="authEmail">Indirizzo Email *</label>
+            <input type="email" id="authEmail" placeholder="nome@esempio.it" required />
+          </div>
+
+          <div class="form-group">
+            <label for="authPassword">Password *</label>
+            <input type="password" id="authPassword" placeholder="Almeno 6 caratteri" required />
+          </div>
+
+          <button type="submit" id="btnSubmitEmailAuth" class="btn btn-primary btn-block">
+            Accedi con Email
+          </button>
+        </form>
+
+        <div class="auth-divider">
+          <span>oppure continua con</span>
+        </div>
+
+        <!-- Pulsante Google Auth -->
+        <button type="button" id="btnModalGoogleLogin" class="btn btn-google btn-block">
+          <svg width="18" height="18" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
@@ -34,128 +425,32 @@
         </button>
       </div>
     </div>
-  </header>
+  </div>
 
-  <!-- Banner Stato Connessione / Avvisi -->
-  <div id="noticeBanner" class="notice-banner hidden"></div>
-
-  <!-- Main Container -->
-  <main class="main-container">
-    
-    <!-- Sezione Statistiche Rapide -->
-    <section class="stats-grid">
-      <div class="stat-card">
-        <span class="stat-icon">🏋️‍♂️</span>
-        <div class="stat-data">
-          <span class="stat-value" id="statTotalWorkouts">0</span>
-          <span class="stat-label">Allenamenti Totali</span>
-        </div>
+  <!-- ========================================== -->
+  <!-- MODALE: DETTAGLIO / GIORNATA CALENDARIO    -->
+  <!-- ========================================== -->
+  <div id="dayDetailModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="dayModalTitle">Allenamenti del Giorno</h3>
+        <button type="button" id="btnCloseDayModal" class="btn-modal-close">&times;</button>
       </div>
-      <div class="stat-card">
-        <span class="stat-icon">📅</span>
-        <div class="stat-data">
-          <span class="stat-value" id="statThisMonth">0</span>
-          <span class="stat-label">Questo Mese</span>
-        </div>
+      <div class="modal-body" id="dayModalBody">
+        <!-- Renderizzato da JS -->
       </div>
-      <div class="stat-card">
-        <span class="stat-icon">🔥</span>
-        <div class="stat-data">
-          <span class="stat-value" id="statLastWorkout">-</span>
-          <span class="stat-label">Ultima Sessione</span>
-        </div>
+      <div class="modal-footer">
+        <button type="button" id="btnDayModalAddWorkout" class="btn btn-primary btn-sm">
+          ➕ Aggiungi Sessione a questo Giorno
+        </button>
       </div>
-    </section>
-
-    <!-- Layout a Due Colonne: Form Inserimento e Storico -->
-    <div class="content-grid">
-      
-      <!-- Colonna Sinistra: Registra Allenamento -->
-      <section class="card form-card">
-        <div class="card-header">
-          <h2>Nuovo Allenamento</h2>
-          <span class="badge badge-accent">Registra</span>
-        </div>
-
-        <!-- Suggerimenti rapidi per il tipo di sessione -->
-        <div class="quick-tags">
-          <span class="tag" data-title="Push (Petto & Tricipiti)">Push</span>
-          <span class="tag" data-title="Pull (Dorso & Bicipiti)">Pull</span>
-          <span class="tag" data-title="Legs (Gambe & Addome)">Legs</span>
-          <span class="tag" data-title="Full Body">Full Body</span>
-          <span class="tag" data-title="Cardio & Core">Cardio</span>
-        </div>
-
-        <form id="workoutForm">
-          <div class="form-row">
-            <div class="form-group flex-2">
-              <label for="workoutTitle">Nome Sessione / Scheda</label>
-              <input type="text" id="workoutTitle" placeholder="es. Spalle & Braccia" required />
-            </div>
-            <div class="form-group flex-1">
-              <label for="workoutDate">Data</label>
-              <input type="date" id="workoutDate" required />
-            </div>
-            <div class="form-group flex-1">
-              <label for="workoutDuration">Durata (min)</label>
-              <input type="number" id="workoutDuration" placeholder="60" min="5" max="360" />
-            </div>
-          </div>
-
-          <!-- Sezione Esercizi Dinamici -->
-          <div class="exercises-container">
-            <div class="exercises-header">
-              <h3>Esercizi</h3>
-              <button type="button" id="btnAddExercise" class="btn btn-secondary btn-sm">
-                + Aggiungi Esercizio
-              </button>
-            </div>
-
-            <div id="exerciseList" class="exercise-list">
-              <!-- Esercizi renderizzati via JavaScript -->
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="workoutNotes">Note Generali (opzionale)</label>
-            <textarea id="workoutNotes" rows="2" placeholder="Sensazioni, recuperi, obiettivi raggiunti..."></textarea>
-          </div>
-
-          <button type="submit" id="btnSaveWorkout" class="btn btn-primary btn-block">
-            💾 Salva Allenamento
-          </button>
-        </form>
-      </section>
-
-      <!-- Colonna Destra: Storico Allenamenti -->
-      <section class="card history-card">
-        <div class="card-header">
-          <h2>Storico Allenamenti</h2>
-          <span class="badge" id="historyCountBadge">0 sessioni</span>
-        </div>
-
-        <!-- Ricerca / Filtro -->
-        <div class="search-box">
-          <input type="text" id="searchInput" placeholder="🔍 Cerca per scheda o esercizio..." />
-        </div>
-
-        <!-- Lista Workout -->
-        <div id="workoutsHistoryList" class="history-list">
-          <div class="empty-state">
-            <span class="empty-icon">📋</span>
-            <p>Nessun allenamento registrato.</p>
-            <small>Compila il form a sinistra per salvare la tua prima sessione!</small>
-          </div>
-        </div>
-      </section>
-
     </div>
-  </main>
+  </div>
 
   <!-- Toast Notifiche -->
   <div id="toast" class="toast"></div>
 
-  <!-- Script Firebase & App -->
+  <!-- Script Principale ES Module -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
