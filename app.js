@@ -213,6 +213,7 @@ let appRole = "ospite"; // 'admin' | 'allenatore' | 'atleta' | 'ospite'
 let activeAthleteId = "allenatore"; // profilo attualmente selezionato per la visualizzazione
 let viewMode = "single"; // 'single' (scheda singolo atleta) | 'all' (tutta la squadra)
 let allWorkouts = [];
+let allPagelle = [];
 let selectedCategoriesForNewWorkout = new Set();
 let currentCalendarMonth = new Date(2026, 10, 1); // Novembre 2026 (dove partono i dati Excel)
 let unsubscribeFirestore = null;
@@ -306,18 +307,43 @@ const dayModalTitle = document.getElementById("dayModalTitle");
 const dayModalBody = document.getElementById("dayModalBody");
 const btnDayModalAddWorkout = document.getElementById("btnDayModalAddWorkout");
 
+// Pagelle Coach (Riservato Coach & Admin)
+const tabCoachNavBtn = document.getElementById("tabCoachNavBtn");
+const tabCoach = document.getElementById("tabCoach");
+const pagellaForm = document.getElementById("pagellaForm");
+const pagellaDate = document.getElementById("pagellaDate");
+const selectBestAthlete = document.getElementById("selectBestAthlete");
+const selectWorstAthlete = document.getElementById("selectWorstAthlete");
+const selectRageAthlete = document.getElementById("selectRageAthlete");
+const pagellaNotes = document.getElementById("pagellaNotes");
+const btnResetPagellaForm = document.getElementById("btnResetPagellaForm");
+const btnSavePagella = document.getElementById("btnSavePagella");
+const pagellaStatusBadge = document.getElementById("pagellaStatusBadge");
+const pagellaFormTitle = document.getElementById("pagellaFormTitle");
+const pagellaFormSubtitle = document.getElementById("pagellaFormSubtitle");
+const pagelleHistoryList = document.getElementById("pagelleHistoryList");
+const pagelleCountBadge = document.getElementById("pagelleCountBadge");
+const statLeaderBest = document.getElementById("statLeaderBest");
+const statCountBest = document.getElementById("statCountBest");
+const statLeaderWorst = document.getElementById("statLeaderWorst");
+const statCountWorst = document.getElementById("statCountWorst");
+const statLeaderRage = document.getElementById("statLeaderRage");
+const statCountRage = document.getElementById("statCountRage");
+
 // Toast
 const toast = document.getElementById("toast");
 
 // --- 6. INIZIALIZZAZIONE ---
 document.addEventListener("DOMContentLoaded", () => {
   workoutDate.valueAsDate = new Date();
+  if (pagellaDate) pagellaDate.valueAsDate = new Date();
 
   loadLocalState();
   renderCategoryChips();
   renderLegendChips();
   setupNavigationTabs();
   setupEventListeners();
+  setupPagelleEventListeners();
   updateAthleteDropdowns();
   updateAthleteSwitcherUI();
   updateCoachStatusUI();
@@ -327,6 +353,7 @@ document.addEventListener("DOMContentLoaded", () => {
   listenToFirestore();
   listenToCoachConfig();
   listenToUsers();
+  listenToPagelle();
 });
 
 // --- 7. CARICAMENTO E PERSISTENZA STATO LOCALE ---
@@ -802,6 +829,7 @@ function setupAuthListener() {
       updateAthleteDropdowns();
       updateAthleteSwitcherUI();
       renderCategoryChips();
+      updateCoachTabVisibility();
       refreshActiveViews();
       updateCoachStatusUI();
       showToast(`Benvenuto, ${user.displayName || user.email}!`, "success");
@@ -812,6 +840,7 @@ function setupAuthListener() {
       loginGate.classList.remove("hidden");
       authenticatedApp.classList.add("hidden");
       athleteSwitcherBar.classList.add("hidden");
+      updateCoachTabVisibility();
 
       renderAuthUI(null);
     }
@@ -1016,6 +1045,7 @@ function setupNavigationTabs() {
       if (targetTab === "tabCalendar") renderCalendar();
       if (targetTab === "tabLog") renderWorkoutsFeed();
       if (targetTab === "tabTeam") renderTeamOverview();
+      if (targetTab === "tabCoach") renderCoachPagelle();
     });
   });
 }
@@ -1024,6 +1054,9 @@ function refreshActiveViews() {
   renderCalendar();
   renderWorkoutsFeed();
   renderTeamOverview();
+  if (appRole === "admin" || appRole === "allenatore") {
+    renderCoachPagelle();
+  }
   updateWorkoutsBadgeCount();
 }
 
@@ -2209,6 +2242,327 @@ if (changePwForm) {
       cpErrorMsg.textContent = msg;
       cpErrorMsg.classList.remove("hidden");
     }
+  });
+}
+
+// --- 20. SEZIONE PAGELLE & VERDETTI COACH (RISERVATO ALLENATORE & ADMIN) ---
+function updateCoachTabVisibility() {
+  const isCoachOrAdmin = (appRole === "admin" || appRole === "allenatore");
+  if (tabCoachNavBtn) {
+    if (isCoachOrAdmin) {
+      tabCoachNavBtn.classList.remove("hidden");
+    } else {
+      tabCoachNavBtn.classList.add("hidden");
+      if (tabCoach && tabCoach.classList.contains("active")) {
+        const calTab = document.querySelector('[data-tab="tabCalendar"]');
+        if (calTab) calTab.click();
+      }
+    }
+  }
+}
+
+async function listenToPagelle() {
+  try {
+    const pagelleCol = collection(db, "pagelle");
+    const q = query(pagelleCol, orderBy("date", "desc"));
+    onSnapshot(q, (snapshot) => {
+      allPagelle = [];
+      snapshot.forEach(docSnap => {
+        allPagelle.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      if (appRole === "admin" || appRole === "allenatore") {
+        renderCoachPagelle();
+      }
+    }, (err) => {
+      console.warn("Ascolto pagelle Firestore:", err);
+    });
+  } catch (err) {
+    console.warn("Errore listenToPagelle:", err);
+  }
+}
+
+function setupPagelleEventListeners() {
+  if (pagellaDate) {
+    pagellaDate.addEventListener("change", () => {
+      checkPagellaForSelectedDate(pagellaDate.value);
+    });
+  }
+
+  if (btnResetPagellaForm) {
+    btnResetPagellaForm.addEventListener("click", () => {
+      resetPagellaForm();
+    });
+  }
+
+  if (pagellaForm) {
+    pagellaForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await savePagella();
+    });
+  }
+}
+
+function populatePagelleAthleteSelects() {
+  const selects = [selectBestAthlete, selectWorstAthlete, selectRageAthlete];
+  selects.forEach(sel => {
+    if (!sel) return;
+    const currentVal = sel.value;
+    sel.innerHTML = `<option value="">-- Nessuno selezionato --</option>`;
+
+    // Recupera tutti gli atleti (incluso Samuele se atleta, esclusa la scheda coach astratta)
+    const athletes = [];
+    if (registeredUsers.samuele_admin) {
+      athletes.push(registeredUsers.samuele_admin);
+    }
+    Object.values(registeredUsers).forEach(u => {
+      if (!u || !u.id) return;
+      if (u.id !== "allenatore" && u.id !== "samuele_admin") {
+        athletes.push(u);
+      }
+    });
+
+    athletes.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+    athletes.forEach(ath => {
+      const opt = document.createElement("option");
+      opt.value = ath.id;
+      opt.textContent = `${ath.avatar || '🏃'} ${ath.name}`;
+      sel.appendChild(opt);
+    });
+
+    sel.value = currentVal;
+  });
+}
+
+function checkPagellaForSelectedDate(dateStr) {
+  if (!dateStr) return;
+  const existing = allPagelle.find(p => p.date === dateStr || p.id === dateStr);
+
+  if (existing) {
+    if (pagellaStatusBadge) {
+      pagellaStatusBadge.textContent = "Verdetto Esistente (Modifica)";
+      pagellaStatusBadge.className = "badge badge-accent";
+    }
+    if (btnSavePagella) {
+      btnSavePagella.innerHTML = "💾 Aggiorna Verdetto del Giorno";
+    }
+    if (selectBestAthlete) selectBestAthlete.value = existing.bestAthleteId || "";
+    if (selectWorstAthlete) selectWorstAthlete.value = existing.worstAthleteId || "";
+    if (selectRageAthlete) selectRageAthlete.value = existing.rageAthleteId || "";
+    if (pagellaNotes) pagellaNotes.value = existing.notes || "";
+  } else {
+    if (pagellaStatusBadge) {
+      pagellaStatusBadge.textContent = "Nuova Data";
+      pagellaStatusBadge.className = "badge";
+    }
+    if (btnSavePagella) {
+      btnSavePagella.innerHTML = "💾 Salva Verdetto del Giorno";
+    }
+    if (selectBestAthlete) selectBestAthlete.value = "";
+    if (selectWorstAthlete) selectWorstAthlete.value = "";
+    if (selectRageAthlete) selectRageAthlete.value = "";
+    if (pagellaNotes) pagellaNotes.value = "";
+  }
+}
+
+function resetPagellaForm() {
+  if (pagellaForm) pagellaForm.reset();
+  if (pagellaDate) pagellaDate.valueAsDate = new Date();
+  if (pagellaStatusBadge) {
+    pagellaStatusBadge.textContent = "Nuova Data";
+    pagellaStatusBadge.className = "badge";
+  }
+  if (btnSavePagella) {
+    btnSavePagella.innerHTML = "💾 Salva Verdetto del Giorno";
+  }
+  checkPagellaForSelectedDate(pagellaDate.value);
+}
+
+async function savePagella() {
+  if (appRole !== "admin" && appRole !== "allenatore") {
+    showToast("Solo l'Allenatore e l'Admin possono registrare le pagelle!", "error");
+    return;
+  }
+
+  const dateVal = pagellaDate.value;
+  if (!dateVal) {
+    showToast("Seleziona una data per il verdetto!", "error");
+    return;
+  }
+
+  const bestId = selectBestAthlete ? selectBestAthlete.value : "";
+  const worstId = selectWorstAthlete ? selectWorstAthlete.value : "";
+  const rageId = selectRageAthlete ? selectRageAthlete.value : "";
+  const notesVal = pagellaNotes ? pagellaNotes.value.trim() : "";
+
+  const getAthleteName = (id) => {
+    if (!id) return "";
+    return registeredUsers[id] ? registeredUsers[id].name : id;
+  };
+
+  const pagellaData = {
+    date: dateVal,
+    bestAthleteId: bestId,
+    bestAthleteName: getAthleteName(bestId),
+    worstAthleteId: worstId,
+    worstAthleteName: getAthleteName(worstId),
+    rageAthleteId: rageId,
+    rageAthleteName: getAthleteName(rageId),
+    notes: notesVal,
+    updatedBy: (currentUser ? (currentUser.displayName || currentUser.email) : "Coach"),
+    updatedAt: serverTimestamp()
+  };
+
+  try {
+    const docRef = doc(db, "pagelle", dateVal);
+    await setDoc(docRef, pagellaData, { merge: true });
+    showToast(`Verdetto del ${dateVal} salvato con successo! 🎯`, "success");
+    checkPagellaForSelectedDate(dateVal);
+    renderCoachPagelle();
+  } catch (err) {
+    console.error("Errore salvataggio pagella:", err);
+    showToast("Errore durante il salvataggio del verdetto: " + err.message, "error");
+  }
+}
+
+async function deletePagella(dateVal) {
+  if (appRole !== "admin" && appRole !== "allenatore") {
+    showToast("Operazione non consentita!", "error");
+    return;
+  }
+
+  if (!confirm(`Sei sicuro di voler eliminare il verdetto del giorno ${dateVal}?`)) {
+    return;
+  }
+
+  try {
+    await deleteDoc(doc(db, "pagelle", dateVal));
+    allPagelle = allPagelle.filter(p => p.date !== dateVal && p.id !== dateVal);
+    showToast(`Verdetto del ${dateVal} eliminato.`, "info");
+    resetPagellaForm();
+    renderCoachPagelle();
+  } catch (err) {
+    console.error("Errore cancellazione pagella:", err);
+    showToast("Errore durante la cancellazione: " + err.message, "error");
+  }
+}
+
+function renderCoachPagelle() {
+  populatePagelleAthleteSelects();
+
+  // 1. Calcolo statistiche "Hall of Fame"
+  const counterBest = {};
+  const counterWorst = {};
+  const counterRage = {};
+
+  allPagelle.forEach(p => {
+    if (p.bestAthleteName) counterBest[p.bestAthleteName] = (counterBest[p.bestAthleteName] || 0) + 1;
+    if (p.worstAthleteName) counterWorst[p.worstAthleteName] = (counterWorst[p.worstAthleteName] || 0) + 1;
+    if (p.rageAthleteName) counterRage[p.rageAthleteName] = (counterRage[p.rageAthleteName] || 0) + 1;
+  });
+
+  const getLeader = (obj) => {
+    let topName = "-";
+    let topCount = 0;
+    for (const [name, count] of Object.entries(obj)) {
+      if (count > topCount) {
+        topCount = count;
+        topName = name;
+      }
+    }
+    return { name: topName, count: topCount };
+  };
+
+  const leaderBest = getLeader(counterBest);
+  const leaderWorst = getLeader(counterWorst);
+  const leaderRage = getLeader(counterRage);
+
+  if (statLeaderBest) statLeaderBest.textContent = leaderBest.name;
+  if (statCountBest) statCountBest.textContent = `${leaderBest.count} ${leaderBest.count === 1 ? 'nomination' : 'nomination'}`;
+
+  if (statLeaderWorst) statLeaderWorst.textContent = leaderWorst.name;
+  if (statCountWorst) statCountWorst.textContent = `${leaderWorst.count} ${leaderWorst.count === 1 ? 'nomination' : 'nomination'}`;
+
+  if (statLeaderRage) statLeaderRage.textContent = leaderRage.name;
+  if (statCountRage) statCountRage.textContent = `${leaderRage.count} ${leaderRage.count === 1 ? 'nomination' : 'nomination'}`;
+
+  // 2. Storico delle pagelle
+  if (pagelleCountBadge) {
+    pagelleCountBadge.textContent = `${allPagelle.length} ${allPagelle.length === 1 ? 'verdetto' : 'verdetti'}`;
+  }
+
+  if (!pagelleHistoryList) return;
+  pagelleHistoryList.innerHTML = "";
+
+  if (allPagelle.length === 0) {
+    pagelleHistoryList.innerHTML = `
+      <div class="empty-state" style="padding: 30px;">
+        <span style="font-size: 2rem;">🎯</span>
+        <p class="text-dim" style="margin-top: 8px;">Nessun verdetto ancora registrato. Seleziona una data in alto per iniziare!</p>
+      </div>
+    `;
+    return;
+  }
+
+  const sorted = [...allPagelle].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  sorted.forEach(p => {
+    const d = new Date(p.date + "T00:00:00");
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const dateFormatted = d.toLocaleDateString('it-IT', options);
+
+    const item = document.createElement("div");
+    item.className = "pagella-history-item";
+
+    const bestBadge = p.bestAthleteName
+      ? `<span class="pagella-verdict-pill pill-best">🌟 <strong>Il più bravo:</strong> ${escapeHtml(p.bestAthleteName)}</span>`
+      : `<span class="text-dim text-xs">🌟 Nessuno</span>`;
+
+    const worstBadge = p.worstAthleteName
+      ? `<span class="pagella-verdict-pill pill-worst">📉 <strong>Il peggiore:</strong> ${escapeHtml(p.worstAthleteName)}</span>`
+      : `<span class="text-dim text-xs">📉 Nessuno</span>`;
+
+    const rageBadge = p.rageAthleteName
+      ? `<span class="pagella-verdict-pill pill-rage">🤬 <strong>Gira coglioni:</strong> ${escapeHtml(p.rageAthleteName)}</span>`
+      : `<span class="text-dim text-xs">🤬 Nessuno</span>`;
+
+    item.innerHTML = `
+      <div class="pagella-item-top">
+        <span class="pagella-item-date">📅 ${dateFormatted}</span>
+        <div class="workout-actions">
+          <button type="button" class="btn-action-edit btn-edit-pagella" data-date="${p.date}" title="Modifica verdetto del giorno">✏️ Modifica</button>
+          <button type="button" class="btn-action-del btn-del-pagella" data-date="${p.date}" title="Elimina verdetto del giorno">🗑️ Elimina</button>
+        </div>
+      </div>
+
+      <div class="pagella-item-badges-row">
+        ${bestBadge}
+        ${worstBadge}
+        ${rageBadge}
+      </div>
+
+      ${p.notes ? `<div class="pagella-item-notes">💬 "${escapeHtml(p.notes)}"</div>` : ''}
+    `;
+
+    const btnEdit = item.querySelector(".btn-edit-pagella");
+    if (btnEdit) {
+      btnEdit.addEventListener("click", () => {
+        if (pagellaDate) {
+          pagellaDate.value = p.date;
+          checkPagellaForSelectedDate(p.date);
+          pagellaForm.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+    }
+
+    const btnDel = item.querySelector(".btn-del-pagella");
+    if (btnDel) {
+      btnDel.addEventListener("click", () => {
+        deletePagella(p.date || p.id);
+      });
+    }
+
+    pagelleHistoryList.appendChild(item);
   });
 }
 

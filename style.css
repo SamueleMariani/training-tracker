@@ -2029,6 +2029,214 @@ input:focus, textarea:focus {
   background: var(--accent-hover);
 }
 
+/* --- SEZIONE PAGELLE & VERDETTI COACH --- */
+.pagelle-header-card {
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+
+.pagelle-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pagelle-title-row h2 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.3px;
+}
+
+/* Hall of Fame Cards */
+.pagelle-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.pagelle-stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 18px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.pagelle-stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.pagelle-stat-card.stat-best {
+  border-left: 4px solid #facc15;
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.08) 0%, var(--bg-card) 60%);
+}
+
+.pagelle-stat-card.stat-worst {
+  border-left: 4px solid #60a5fa;
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.08) 0%, var(--bg-card) 60%);
+}
+
+.pagelle-stat-card.stat-rage {
+  border-left: 4px solid #ef4444;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, var(--bg-card) 60%);
+}
+
+.pagelle-stat-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.pagelle-stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.pagelle-stat-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.pagelle-stat-info h4 {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 2px 0;
+}
+
+.pagelle-stat-count {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+/* Form Pagelle */
+.pagella-form-card {
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.pagella-selects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.pagella-field-best, .pagella-field-worst, .pagella-field-rage {
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pagella-field-best { border-top: 3px solid #facc15; }
+.pagella-field-worst { border-top: 3px solid #60a5fa; }
+.pagella-field-rage { border-top: 3px solid #ef4444; }
+
+.pagella-field-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #fff;
+  display: block;
+}
+
+/* Storico Pagelle */
+.pagelle-history-card {
+  padding: 24px;
+}
+
+.pagelle-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.pagella-history-item {
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.2s ease;
+}
+
+.pagella-history-item:hover {
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.pagella-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+}
+
+.pagella-item-date {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.pagella-item-badges-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.pagella-verdict-pill {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.pagella-verdict-pill.pill-best {
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  color: #fef08a;
+}
+
+.pagella-verdict-pill.pill-worst {
+  background: rgba(96, 165, 250, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  color: #bfdbfe;
+}
+
+.pagella-verdict-pill.pill-rage {
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+}
+
+.pagella-item-notes {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+  padding-left: 8px;
+  border-left: 2px solid var(--border-color);
+}
+
 /* --- SMARTPHONE ULTRA COMPATTO (< 480px) --- */
 @media (max-width: 480px) {
   /* Header */

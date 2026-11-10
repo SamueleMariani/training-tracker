@@ -124,6 +124,10 @@
           <span class="tab-icon">👥</span>
           <span class="tab-label">Squadra</span>
         </button>
+        <button class="nav-tab hidden" id="tabCoachNavBtn" data-tab="tabCoach">
+          <span class="tab-icon">🎯</span>
+          <span class="tab-label">Pagelle</span>
+        </button>
       </div>
     </nav>
 
@@ -403,6 +407,138 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 5: PAGELLE COACH (RISERVATO ALLENATORE & ADMIN) -->
+      <!-- ========================================== -->
+      <section id="tabCoach" class="tab-pane">
+        <!-- Header Sezione Pagelle -->
+        <div class="card pagelle-header-card">
+          <div class="pagelle-header-content">
+            <div>
+              <div class="pagelle-title-row">
+                <h2>🎯 Verdetti & Pagelle del Coach</h2>
+                <span class="badge badge-accent">🔒 Riservato Coach & Admin</span>
+              </div>
+              <p class="text-dim text-sm" style="margin-top: 4px;">Assegna per ogni giornata le valutazioni della seduta. Tutti i campi sono opzionali.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hall of Fame / Statistiche Simpatiche -->
+        <div class="pagelle-stats-grid">
+          <div class="pagelle-stat-card stat-best">
+            <span class="pagelle-stat-icon">🌟</span>
+            <div class="pagelle-stat-info">
+              <span class="pagelle-stat-label">Il Più Premiato</span>
+              <h4 id="statLeaderBest">-</h4>
+              <span class="pagelle-stat-count" id="statCountBest">0 nomination</span>
+            </div>
+          </div>
+
+          <div class="pagelle-stat-card stat-worst">
+            <span class="pagelle-stat-icon">📉</span>
+            <div class="pagelle-stat-info">
+              <span class="pagelle-stat-label">Più Volte Rimandato</span>
+              <h4 id="statLeaderWorst">-</h4>
+              <span class="pagelle-stat-count" id="statCountWorst">0 nomination</span>
+            </div>
+          </div>
+
+          <div class="pagelle-stat-card stat-rage">
+            <span class="pagelle-stat-icon">🤬</span>
+            <div class="pagelle-stat-info">
+              <span class="pagelle-stat-label">Campione "Gira Coglioni"</span>
+              <h4 id="statLeaderRage">-</h4>
+              <span class="pagelle-stat-count" id="statCountRage">0 nomination</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Inserimento / Modifica Verdetto Giornaliero -->
+        <div class="card pagella-form-card">
+          <div class="card-header">
+            <div>
+              <h3 id="pagellaFormTitle">📝 Assegna Verdetto Giornaliero</h3>
+              <span class="text-dim text-xs" id="pagellaFormSubtitle">Seleziona la data e indica gli atleti per ciascuna categoria</span>
+            </div>
+            <span class="badge" id="pagellaStatusBadge">Nuova data</span>
+          </div>
+
+          <form id="pagellaForm">
+            <!-- Data Seduta -->
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="pagellaDate">Data della Seduta *</label>
+                <input type="date" id="pagellaDate" class="form-input" required />
+              </div>
+            </div>
+
+            <!-- I 3 Campi con Select Atleti -->
+            <div class="pagella-selects-grid">
+              <!-- Più Bravo -->
+              <div class="form-group pagella-field-best">
+                <label for="selectBestAthlete">
+                  <span class="pagella-field-title">🌟 Chi è stato il più bravo?</span>
+                  <span class="text-xs text-muted">(Opzionale)</span>
+                </label>
+                <select id="selectBestAthlete" class="form-select">
+                  <option value="">-- Nessuno selezionato --</option>
+                </select>
+              </div>
+
+              <!-- Peggiore -->
+              <div class="form-group pagella-field-worst">
+                <label for="selectWorstAthlete">
+                  <span class="pagella-field-title">📉 Chi è stato il peggiore?</span>
+                  <span class="text-xs text-muted">(Opzionale)</span>
+                </label>
+                <select id="selectWorstAthlete" class="form-select">
+                  <option value="">-- Nessuno selezionato --</option>
+                </select>
+              </div>
+
+              <!-- Gira Coglioni -->
+              <div class="form-group pagella-field-rage">
+                <label for="selectRageAthlete">
+                  <span class="pagella-field-title">🤬 Chi ti ha fatto più girare i coglioni?</span>
+                  <span class="text-xs text-muted">(Opzionale)</span>
+                </label>
+                <select id="selectRageAthlete" class="form-select">
+                  <option value="">-- Nessuno selezionato --</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Note / Motivazione Coach -->
+            <div class="form-group" style="margin-top: 14px;">
+              <label for="pagellaNotes">Note o motivazione del verdetto (Opzionale)</label>
+              <textarea id="pagellaNotes" rows="2" placeholder="Motivazione, aneddoti della pista, richiami..."></textarea>
+            </div>
+
+            <div class="form-actions" style="margin-top: 18px;">
+              <button type="button" id="btnResetPagellaForm" class="btn btn-secondary">
+                ✕ Reset
+              </button>
+              <button type="submit" id="btnSavePagella" class="btn btn-primary">
+                💾 Salva Verdetto del Giorno
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Storico Verdetti del Coach -->
+        <div class="card pagelle-history-card">
+          <div class="card-header">
+            <h3>📜 Storico Verdetti Registrati</h3>
+            <span class="badge" id="pagelleCountBadge">0 verdetti</span>
+          </div>
+
+          <div id="pagelleHistoryList" class="pagelle-history-list">
+            <!-- Renderizzato via JS -->
           </div>
         </div>
       </section>
