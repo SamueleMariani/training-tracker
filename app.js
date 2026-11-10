@@ -215,7 +215,17 @@ let viewMode = "single"; // 'single' (scheda singolo atleta) | 'all' (tutta la s
 let allWorkouts = [];
 let allPagelle = [];
 let selectedCategoriesForNewWorkout = new Set();
-let currentCalendarMonth = new Date(2026, 10, 1); // Novembre 2026 (dove partono i dati Excel)
+
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(date.setDate(diff));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
+let currentWeekStart = getMonday(new Date()); // Settimana corrente
 let unsubscribeFirestore = null;
 let editingWorkoutId = null; // ID dell'allenamento attualmente in fase di modifica
 
@@ -1084,35 +1094,46 @@ function getVisibleWorkouts() {
   });
 }
 
-// --- 13. TAB 1: PANORAMICA MENSILE (CALENDARIO) ---
+// --- 13. TAB 1: PANORAMICA SETTIMANALE (CALENDARIO A SETTIMANE) ---
 function renderCalendar() {
   if (!calendarGrid) return;
   calendarGrid.innerHTML = "";
-
-  const year = currentCalendarMonth.getFullYear();
-  const month = currentCalendarMonth.getMonth();
 
   const monthNames = [
     "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
   ];
-  calendarMonthTitle.textContent = `${monthNames[month]} ${year}`;
-  breakdownMonthLabel.textContent = `${monthNames[month]} ${year}`;
+  const shortMonthNames = [
+    "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
+    "Lug", "Ago", "Set", "Ott", "Nov", "Dic"
+  ];
 
-  const firstDayOfMonth = new Date(year, month, 1);
-  const lastDayOfMonth = new Date(year, month + 1, 0);
-
-  let startingDayOfWeek = (firstDayOfMonth.getDay() + 6) % 7;
-  const totalDaysInMonth = lastDayOfMonth.getDate();
-
-  const prevMonthLastDay = new Date(year, month, 0).getDate();
-  for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-    const dayNum = prevMonthLastDay - i;
-    const cell = createCalendarCell(dayNum, true, new Date(year, month - 1, dayNum));
-    calendarGrid.appendChild(cell);
+  // Calcola i 7 giorni della settimana (Lunedì -> Domenica)
+  const weekDays = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(currentWeekStart.getFullYear(), currentWeekStart.getMonth(), currentWeekStart.getDate() + i);
+    weekDays.push(d);
   }
 
+  const monday = weekDays[0];
+  const sunday = weekDays[6];
+
+  let weekTitleText = "";
+  if (monday.getFullYear() === sunday.getFullYear()) {
+    if (monday.getMonth() === sunday.getMonth()) {
+      weekTitleText = `${monday.getDate()} - ${sunday.getDate()} ${monthNames[monday.getMonth()]} ${monday.getFullYear()}`;
+    } else {
+      weekTitleText = `${monday.getDate()} ${shortMonthNames[monday.getMonth()]} - ${sunday.getDate()} ${shortMonthNames[sunday.getMonth()]} ${monday.getFullYear()}`;
+    }
+  } else {
+    weekTitleText = `${monday.getDate()} ${shortMonthNames[monday.getMonth()]} ${monday.getFullYear()} - ${sunday.getDate()} ${shortMonthNames[sunday.getMonth()]} ${sunday.getFullYear()}`;
+  }
+
+  calendarMonthTitle.textContent = weekTitleText;
+  breakdownMonthLabel.textContent = `Settimana ${monday.getDate()} ${shortMonthNames[monday.getMonth()]} - ${sunday.getDate()} ${shortMonthNames[sunday.getMonth()]}`;
+
   const today = new Date();
+  const todayStr = formatDateToISO(today);
   const visibleWorkouts = getVisibleWorkouts();
 
   const workoutsByDate = {};
@@ -1121,36 +1142,30 @@ function renderCalendar() {
     workoutsByDate[w.date].push(w);
   });
 
-  let monthlyWorkoutsCount = 0;
+  let weeklyWorkoutsCount = 0;
   const categoryCounter = {};
 
-  for (let day = 1; day <= totalDaysInMonth; day++) {
-    const currentDate = new Date(year, month, day);
-    const dateStr = formatDateToISO(currentDate);
-    const dayWorkouts = workoutsByDate[dateStr] || [];
+  const weekdayNamesLong = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
 
-    const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
-    const cell = createCalendarCell(day, false, currentDate, isToday, dayWorkouts);
-    calendarGrid.appendChild(cell);
+  weekDays.forEach((cellDate, index) => {
+    const dateStr = formatDateToISO(cellDate);
+    const dayWorkouts = workoutsByDate[dateStr] || [];
+    const isToday = (dateStr === todayStr);
 
     if (dayWorkouts.length > 0) {
-      monthlyWorkoutsCount += dayWorkouts.length;
+      weeklyWorkoutsCount += dayWorkouts.length;
       dayWorkouts.forEach(w => {
         (w.categories || []).forEach(catId => {
           categoryCounter[catId] = (categoryCounter[catId] || 0) + 1;
         });
       });
     }
-  }
 
-  const totalCellsSoFar = startingDayOfWeek + totalDaysInMonth;
-  const remainingCells = (7 - (totalCellsSoFar % 7)) % 7;
-  for (let i = 1; i <= remainingCells; i++) {
-    const cell = createCalendarCell(i, true, new Date(year, month + 1, i));
+    const cell = createWeekDayCell(weekdayNamesLong[index], cellDate, isToday, dayWorkouts);
     calendarGrid.appendChild(cell);
-  }
+  });
 
-  calStatTotal.textContent = monthlyWorkoutsCount;
+  calStatTotal.textContent = weeklyWorkoutsCount;
 
   let topCatId = "-";
   let maxCount = 0;
@@ -1163,64 +1178,104 @@ function renderCalendar() {
   const topCatObj = CATEGORIES[topCatId];
   calStatTopCategory.textContent = topCatObj ? `${topCatObj.icon} ${topCatObj.label}` : "Nessuna";
 
-  renderMonthlyBreakdownBars(categoryCounter, monthlyWorkoutsCount);
+  renderMonthlyBreakdownBars(categoryCounter, weeklyWorkoutsCount);
 }
 
-function createCalendarCell(dayNumber, isOtherMonth, cellDate, isToday = false, dayWorkouts = []) {
+function createWeekDayCell(weekdayName, cellDate, isToday = false, dayWorkouts = []) {
   const cell = document.createElement("div");
-  cell.className = `calendar-cell ${isOtherMonth ? 'other-month' : ''} ${isToday ? 'today' : ''}`;
+  cell.className = `week-day-cell ${isToday ? 'today' : ''}`;
 
-  const topRow = document.createElement("div");
-  topRow.className = "cell-top";
-  topRow.innerHTML = `<span class="day-number">${dayNumber}</span>`;
-  cell.appendChild(topRow);
+  const dateNum = cellDate.getDate();
+  const monthShort = cellDate.toLocaleDateString('it-IT', { month: 'short' });
 
+  // Header del giorno della settimana
+  const header = document.createElement("div");
+  header.className = "week-day-header";
+  header.innerHTML = `
+    <div class="week-day-title-wrap">
+      <span class="week-day-name">${weekdayName}</span>
+      <span class="week-day-date">${dateNum} ${monthShort}</span>
+    </div>
+    ${isToday ? '<span class="badge-today">OGGI</span>' : ''}
+  `;
+  cell.appendChild(header);
+
+  // Contenitore delle sessioni
   const workoutsContainer = document.createElement("div");
-  workoutsContainer.className = "day-workouts-container";
+  workoutsContainer.className = "week-workouts-container";
 
   if (dayWorkouts.length > 0) {
     dayWorkouts.forEach(w => {
+      const card = document.createElement("div");
+      card.className = "week-workout-item";
+
       const cats = w.categories && w.categories.length > 0 ? w.categories : ["velocita"];
-      cats.forEach(catId => {
-        const catObj = CATEGORIES[catId] || { label: catId, bg: "#334155", color: "#fff", icon: "⚡" };
-        const pill = document.createElement("div");
-        pill.className = "cal-workout-pill";
-        pill.style.backgroundColor = catObj.bg;
-        pill.style.color = catObj.color;
-        pill.style.borderLeftColor = catObj.accent || catObj.border || catObj.color;
-        pill.style.setProperty("--pill-accent", catObj.accent || catObj.border || catObj.color);
-        pill.innerHTML = `<span class="pill-icon">${catObj.icon}</span> <span class="pill-text">${catObj.label}</span>`;
-        workoutsContainer.appendChild(pill);
+      const catObj = CATEGORIES[cats[0]] || { label: cats[0], bg: "#334155", color: "#fff", icon: "⚡" };
+
+      card.style.borderLeftColor = catObj.accent || catObj.border || "#38bdf8";
+
+      // Autore se modalità tutta la squadra
+      const athleteName = w.userName || (registeredUsers[w.userId] ? registeredUsers[w.userId].name : "Atleta");
+      const authorBadge = (viewMode === "all") ? `<span class="week-item-author">👤 ${escapeHtml(athleteName)}</span>` : "";
+
+      const catsBadges = cats.map(cId => {
+        const c = CATEGORIES[cId] || { label: cId, icon: "⚡", bg: "#38bdf8", color: "#000" };
+        return `<span class="week-cat-tag" style="background:${c.bg}; color:${c.color}; border:1px solid ${c.border || c.color}">${c.icon} ${c.label}</span>`;
+      }).join(" ");
+
+      card.innerHTML = `
+        <div class="week-item-top">
+          <div class="week-item-badges">${catsBadges}</div>
+          ${authorBadge}
+        </div>
+        ${w.title ? `<div class="week-item-title">${escapeHtml(w.title)}</div>` : ''}
+        ${w.specifiche ? `<div class="week-item-specifiche">${escapeHtml(w.specifiche)}</div>` : ''}
+        ${w.tempiCarichi ? `<div class="week-item-chrono font-mono">⏱️ ${escapeHtml(w.tempiCarichi)}</div>` : ''}
+      `;
+
+      card.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const dateIso = formatDateToISO(cellDate);
+        const squadWorkouts = allWorkouts.filter(item => item.date === dateIso);
+        openDayDetailModal(cellDate, squadWorkouts.length > 0 ? squadWorkouts : dayWorkouts);
       });
 
-      if (w.specifiche) {
-        const drillPreview = document.createElement("div");
-        drillPreview.className = "cal-workout-drill";
-        drillPreview.textContent = w.specifiche;
-        drillPreview.title = `${w.specifiche} ${w.tempiCarichi ? ' | ' + w.tempiCarichi : ''}`;
-        workoutsContainer.appendChild(drillPreview);
-      }
+      workoutsContainer.appendChild(card);
     });
+  } else {
+    const emptyNotice = document.createElement("div");
+    emptyNotice.className = "week-empty-day";
+    emptyNotice.innerHTML = `
+      <span class="week-empty-text">Nessuna sessione</span>
+      <button type="button" class="btn-add-session-inline">➕ Aggiungi</button>
+    `;
 
-    cell.addEventListener("click", () => {
-      const dateIso = formatDateToISO(cellDate);
-      const squadWorkouts = allWorkouts.filter(item => item.date === dateIso);
-      openDayDetailModal(cellDate, squadWorkouts.length > 0 ? squadWorkouts : dayWorkouts);
-    });
-  } else if (!isOtherMonth) {
-    cell.addEventListener("click", () => {
-      const dateIso = formatDateToISO(cellDate);
-      const squadWorkouts = allWorkouts.filter(item => item.date === dateIso);
-      if (squadWorkouts.length > 0) {
-        openDayDetailModal(cellDate, squadWorkouts);
-      } else {
+    const btnAdd = emptyNotice.querySelector(".btn-add-session-inline");
+    if (btnAdd) {
+      btnAdd.addEventListener("click", (e) => {
+        e.stopPropagation();
         workoutDate.valueAsDate = cellDate;
         document.querySelector('[data-tab="tabNew"]').click();
-      }
-    });
+      });
+    }
+
+    workoutsContainer.appendChild(emptyNotice);
   }
 
   cell.appendChild(workoutsContainer);
+
+  // Click su tutta la cella del giorno
+  cell.addEventListener("click", () => {
+    const dateIso = formatDateToISO(cellDate);
+    const squadWorkouts = allWorkouts.filter(item => item.date === dateIso);
+    if (squadWorkouts.length > 0) {
+      openDayDetailModal(cellDate, squadWorkouts);
+    } else {
+      workoutDate.valueAsDate = cellDate;
+      document.querySelector('[data-tab="tabNew"]').click();
+    }
+  });
+
   return cell;
 }
 
@@ -1846,7 +1901,7 @@ function renderTeamOverview() {
     }
   });
 
-  const currentMonthPrefix = formatDateToISO(currentCalendarMonth).substring(0, 7);
+  const currentMonthPrefix = formatDateToISO(currentWeekStart).substring(0, 7);
 
   usersList.forEach(u => {
     const userWorkouts = allWorkouts.filter(w => {
@@ -2046,18 +2101,17 @@ btnModalGoogleLogin.addEventListener("click", signInWithGoogle);
 // --- 19. EVENT LISTENERS GENERALI ---
 function setupEventListeners() {
   btnPrevMonth.addEventListener("click", () => {
-    currentCalendarMonth = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth() - 1, 1);
+    currentWeekStart = new Date(currentWeekStart.getFullYear(), currentWeekStart.getMonth(), currentWeekStart.getDate() - 7);
     renderCalendar();
   });
 
   btnNextMonth.addEventListener("click", () => {
-    currentCalendarMonth = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth() + 1, 1);
+    currentWeekStart = new Date(currentWeekStart.getFullYear(), currentWeekStart.getMonth(), currentWeekStart.getDate() + 7);
     renderCalendar();
   });
 
   btnTodayMonth.addEventListener("click", () => {
-    const now = new Date();
-    currentCalendarMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    currentWeekStart = getMonday(new Date());
     renderCalendar();
   });
 

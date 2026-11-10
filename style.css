@@ -529,7 +529,178 @@ body {
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* --- VISTA SETTIMANALE --- */
+.week-view-grid {
+  align-items: stretch;
+}
+
+.week-day-cell {
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  min-height: 200px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.week-day-cell:hover {
+  border-color: rgba(56, 189, 248, 0.4);
+  transform: translateY(-2px);
+}
+
+.week-day-cell.today {
+  border-color: var(--accent);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.2);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.05) 0%, var(--bg-card-subtle) 100%);
+}
+
+.week-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+}
+
+.week-day-title-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.week-day-name {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.week-day-date {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.badge-today {
+  background: var(--accent);
+  color: #000;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.week-workouts-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.week-workout-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-left: 4px solid #38bdf8;
+  border-radius: var(--radius-sm);
+  padding: 8px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: all 0.2s ease;
+}
+
+.week-workout-item:hover {
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.week-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.week-item-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.week-cat-tag {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 5px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.week-item-author {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.week-item-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.week-item-specifiche {
+  font-size: 0.76rem;
+  color: #e2e8f0;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.week-item-chrono {
+  font-size: 0.72rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.week-empty-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
   gap: 6px;
+  color: var(--text-dim);
+  font-size: 0.74rem;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.btn-add-session-inline {
+  background: transparent;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-add-session-inline:hover {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: #38bdf8;
+  color: #fff;
 }
 
 .calendar-cell {
@@ -1729,9 +1900,24 @@ input:focus, textarea:focus {
   }
 
   .calendar-weekdays {
-    font-size: 0.72rem;
-    padding-bottom: 6px;
-    margin-bottom: 4px;
+    display: none; /* Nella vista settimanale ogni giorno ha già la sua intestazione */
+  }
+
+  /* Vista Settimanale su Smartphone & Tablet: Layout verticale a schede giornaliere */
+  .week-view-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .week-day-cell {
+    min-height: auto;
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+  }
+
+  .week-workout-item {
+    padding: 10px 12px;
   }
 
   .calendar-grid {

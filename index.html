@@ -135,25 +135,25 @@
     <main class="main-container">
 
       <!-- ========================================== -->
-      <!-- TAB 1: PANORAMICA MENSILE (CALENDARIO)     -->
+      <!-- TAB 1: PANORAMICA SETTIMANALE (MICRO-CICLO) -->
       <!-- ========================================== -->
       <section id="tabCalendar" class="tab-pane active">
-        <!-- Toolbar Mese & Filtri -->
+        <!-- Toolbar Settimana & Statistiche -->
         <div class="calendar-toolbar card">
           <div class="month-selector">
-            <button id="btnPrevMonth" class="btn btn-secondary btn-icon" title="Mese precedente">‹</button>
+            <button id="btnPrevMonth" class="btn btn-secondary btn-icon" title="Settimana precedente">‹</button>
             <div class="current-month-display">
-              <h2 id="calendarMonthTitle">Novembre 2026</h2>
-              <span class="month-subinfo" id="calendarAthleteSubtitle">I miei allenamenti</span>
+              <h2 id="calendarMonthTitle">Settimana in corso</h2>
+              <span class="month-subinfo" id="calendarAthleteSubtitle">Microciclo Settimanale</span>
             </div>
-            <button id="btnNextMonth" class="btn btn-secondary btn-icon" title="Mese successivo">›</button>
-            <button id="btnTodayMonth" class="btn btn-secondary btn-sm">Oggi</button>
+            <button id="btnNextMonth" class="btn btn-secondary btn-icon" title="Settimana successiva">›</button>
+            <button id="btnTodayMonth" class="btn btn-secondary btn-sm" title="Torna alla settimana corrente">Oggi</button>
           </div>
 
           <div class="calendar-summary-mini">
             <div class="summary-stat">
               <span class="stat-number" id="calStatTotal">0</span>
-              <span class="stat-text">Sedute</span>
+              <span class="stat-text">Sedute Settimana</span>
             </div>
             <div class="summary-stat">
               <span class="stat-number" id="calStatTopCategory">-</span>
@@ -162,27 +162,18 @@
           </div>
         </div>
 
-        <!-- Calendario Grid -->
+        <!-- Vista Settimanale Grid -->
         <div class="calendar-wrapper card">
-          <div class="calendar-weekdays">
-            <div>Lun</div>
-            <div>Mar</div>
-            <div>Mer</div>
-            <div>Gio</div>
-            <div>Ven</div>
-            <div>Sab</div>
-            <div>Dom</div>
-          </div>
-          <div id="calendarGrid" class="calendar-grid">
-            <!-- Giorni generati dinamicamente da app.js -->
+          <div id="calendarGrid" class="calendar-grid week-view-grid">
+            <!-- 7 Giorni della settimana generati dinamicamente da app.js -->
           </div>
         </div>
 
-        <!-- Breakdown Categorie del Mese -->
+        <!-- Breakdown Categorie della Settimana -->
         <div class="monthly-breakdown card">
           <div class="card-header">
-            <h3>📊 Distribuzione Allenamenti del Mese</h3>
-            <span class="badge" id="breakdownMonthLabel">Novembre 2026</span>
+            <h3>📊 Distribuzione Allenamenti della Settimana</h3>
+            <span class="badge" id="breakdownMonthLabel">Settimana corrente</span>
           </div>
           <div id="categoryBreakdownBars" class="breakdown-grid">
             <!-- Barre e percentuali per categoria renderizzate via JS -->
