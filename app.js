@@ -45,49 +45,54 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
-// --- 2. DEFINIZIONE CATEGORIE ATLETICA & COLORI ---
+// --- 2. DEFINIZIONE CATEGORIE ATLETICA & COLORI (VIVIDI & AD ALTO CONTRASTO) ---
 export const CATEGORIES = {
   velocita: {
     id: "velocita",
     label: "Velocità",
-    bg: "#FFF2CC",
+    accent: "#FACC15",
+    bg: "#FEF08A",
     border: "#EAB308",
-    color: "#854D0E",
+    color: "#713F12",
     icon: "⚡",
     coachOnly: false
   },
   accelerazioni: {
     id: "accelerazioni",
     label: "Accelerazioni",
+    accent: "#EC4899",
     bg: "#FCE7F3",
-    border: "#F472B6",
-    color: "#9D174D",
+    border: "#DB2777",
+    color: "#831843",
     icon: "🚀",
     coachOnly: false
   },
   ritmica: {
     id: "ritmica",
     label: "Ritmica",
-    bg: "#CCFBF1",
-    border: "#2DD4BF",
-    color: "#0F766E",
+    accent: "#06B6D4",
+    bg: "#CFFAFE",
+    border: "#0891B2",
+    color: "#155E75",
     icon: "🎵",
     coachOnly: false
   },
   lattacido: {
     id: "lattacido",
     label: "Lattacido",
+    accent: "#EF4444",
     bg: "#FEE2E2",
-    border: "#F87171",
-    color: "#991B1B",
+    border: "#DC2626",
+    color: "#7F1D1D",
     icon: "🔥",
     coachOnly: false
   },
   soglia: {
     id: "soglia",
     label: "Soglia",
+    accent: "#38BDF8",
     bg: "#E0F2FE",
-    border: "#38BDF8",
+    border: "#0284C7",
     color: "#0369A1",
     icon: "⏱️",
     coachOnly: false
@@ -95,63 +100,70 @@ export const CATEGORIES = {
   rv: {
     id: "rv",
     label: "RV (Resistenza Veloce)",
+    accent: "#F97316",
     bg: "#FFEDD5",
-    border: "#FB923C",
-    color: "#9A3412",
+    border: "#EA580C",
+    color: "#7C2D12",
     icon: "🏃",
     coachOnly: false
   },
   forza: {
     id: "forza",
     label: "Forza",
+    accent: "#22C55E",
     bg: "#DCFCE7",
-    border: "#4ADE80",
-    color: "#166534",
+    border: "#16A34A",
+    color: "#14532D",
     icon: "🏋️",
     coachOnly: false
   },
   balzi: {
     id: "balzi",
     label: "Balzi",
+    accent: "#A855F7",
     bg: "#F3E8FF",
-    border: "#C084FC",
-    color: "#6B21A8",
+    border: "#9333EA",
+    color: "#581C87",
     icon: "🦘",
     coachOnly: false
   },
   fondo_lento: {
     id: "fondo_lento",
     label: "Fondo Lento",
-    bg: "#F1F5F9",
-    border: "#CBD5E1",
-    color: "#334155",
+    accent: "#84CC16",
+    bg: "#ECFCCB",
+    border: "#65A30D",
+    color: "#3F6212",
     icon: "👟",
     coachOnly: false
   },
   sci: {
     id: "sci",
     label: "Sci",
+    accent: "#2563EB",
     bg: "#DBEAFE",
-    border: "#60A5FA",
-    color: "#1E40AF",
+    border: "#1D4ED8",
+    color: "#1E3A8A",
     icon: "⛷️",
     coachOnly: true
   },
   nuoto: {
     id: "nuoto",
     label: "Nuoto (Jolly)",
-    bg: "#E2E8F0",
-    border: "#94A3B8",
-    color: "#475569",
+    accent: "#0D9488",
+    bg: "#CCFBF1",
+    border: "#0F766E",
+    color: "#134E4A",
     icon: "🏊",
     coachOnly: true
   },
   riposo: {
     id: "riposo",
     label: "Riposo",
-    bg: "#1E293B",
+    accent: "#64748B",
+    bg: "#334155",
     border: "#475569",
-    color: "#94A3B8",
+    color: "#F1F5F9",
     icon: "🛌",
     coachOnly: false
   }
@@ -1161,7 +1173,8 @@ function createCalendarCell(dayNumber, isOtherMonth, cellDate, isToday = false, 
         pill.className = "cal-workout-pill";
         pill.style.backgroundColor = catObj.bg;
         pill.style.color = catObj.color;
-        pill.style.borderLeftColor = catObj.border || catObj.color;
+        pill.style.borderLeftColor = catObj.accent || catObj.border || catObj.color;
+        pill.style.setProperty("--pill-accent", catObj.accent || catObj.border || catObj.color);
         pill.innerHTML = `<span class="pill-icon">${catObj.icon}</span> <span class="pill-text">${catObj.label}</span>`;
         workoutsContainer.appendChild(pill);
       });
@@ -1218,7 +1231,7 @@ function renderMonthlyBreakdownBars(counter, totalWorkouts) {
         <span class="breakdown-counts">${count} sedute (${percentage}%)</span>
       </div>
       <div class="progress-track">
-        <div class="progress-fill" style="width: ${percentage}%; background-color: ${cat.border || cat.color};"></div>
+        <div class="progress-fill" style="width: ${percentage}%; background-color: ${cat.accent || cat.border || cat.color};"></div>
       </div>
     `;
     categoryBreakdownBars.appendChild(item);
