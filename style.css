@@ -891,6 +891,28 @@ body {
   gap: 8px;
 }
 
+.btn-action-copy {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  color: #34d399;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-action-copy:hover {
+  background: rgba(16, 185, 129, 0.35);
+  color: #fff;
+  border-color: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
 .btn-action-edit {
   background: transparent;
   border: 1px solid rgba(56, 189, 248, 0.35);

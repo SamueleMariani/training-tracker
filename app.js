@@ -67,6 +67,16 @@ export const CATEGORIES = {
     icon: "🚀",
     coachOnly: false
   },
+  traino: {
+    id: "traino",
+    label: "Traino",
+    accent: "#6366F1",
+    bg: "#E0E7FF",
+    border: "#4F46E5",
+    color: "#3730A3",
+    icon: "🛷",
+    coachOnly: false
+  },
   ritmica: {
     id: "ritmica",
     label: "Ritmica",
@@ -1189,12 +1199,20 @@ function createCalendarCell(dayNumber, isOtherMonth, cellDate, isToday = false, 
     });
 
     cell.addEventListener("click", () => {
-      openDayDetailModal(cellDate, dayWorkouts);
+      const dateIso = formatDateToISO(cellDate);
+      const squadWorkouts = allWorkouts.filter(item => item.date === dateIso);
+      openDayDetailModal(cellDate, squadWorkouts.length > 0 ? squadWorkouts : dayWorkouts);
     });
   } else if (!isOtherMonth) {
     cell.addEventListener("click", () => {
-      workoutDate.valueAsDate = cellDate;
-      document.querySelector('[data-tab="tabNew"]').click();
+      const dateIso = formatDateToISO(cellDate);
+      const squadWorkouts = allWorkouts.filter(item => item.date === dateIso);
+      if (squadWorkouts.length > 0) {
+        openDayDetailModal(cellDate, squadWorkouts);
+      } else {
+        workoutDate.valueAsDate = cellDate;
+        document.querySelector('[data-tab="tabNew"]').click();
+      }
     });
   }
 
@@ -1355,6 +1373,7 @@ function createWorkoutCard(w) {
   if (canManage) {
     actionsHtml = `
       <div class="workout-actions">
+        <button type="button" class="btn-action-copy" data-id="${w.id}" title="Duplica questo allenamento">📋 Duplica</button>
         <button type="button" class="btn-action-edit" data-id="${w.id}" title="Modifica questa sessione">✏️ Modifica</button>
         <button type="button" class="btn-action-del" data-id="${w.id}" title="Elimina questa sessione">🗑️ Elimina</button>
       </div>
@@ -1362,6 +1381,7 @@ function createWorkoutCard(w) {
   } else {
     actionsHtml = `
       <div class="workout-actions">
+        <button type="button" class="btn-action-copy" data-id="${w.id}" title="Copia questo allenamento nel tuo diario per personalizzarlo">📋 Copia per me</button>
         <span class="text-dim text-xs" title="Puoi visualizzare questa sessione, ma solo l'autore può modificarla o eliminarla">🔒 Solo lettura</span>
       </div>
     `;
@@ -1400,6 +1420,14 @@ function createWorkoutCard(w) {
     </div>
   `;
 
+  const copyBtn = card.querySelector(".btn-action-copy");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      copyWorkoutToCurrentUser(w);
+    });
+  }
+
   if (canManage) {
     const editBtn = card.querySelector(".btn-action-edit");
     if (editBtn) {
@@ -1419,6 +1447,69 @@ function createWorkoutCard(w) {
   }
 
   return card;
+}
+
+// Copia un allenamento (proprio o di un compagno/coach) assegnandolo all'utente loggato
+async function copyWorkoutToCurrentUser(w) {
+  if (!currentUser) {
+    showToast("Effettua l'accesso per copiare questo allenamento nel tuo diario!", "error");
+    openAuthModal();
+    return;
+  }
+
+  const isCoach = (appRole === "allenatore" || (coachInfo && coachInfo.uid === currentUser.uid));
+  const isSamuele = (appRole === "admin" || (currentUser.email && currentUser.email.toLowerCase().includes("samuele")));
+
+  let authorId = currentUser.uid;
+  let authorName = currentUser.displayName || currentUser.email.split("@")[0];
+  let authorEmail = currentUser.email || "";
+
+  if (isCoach) {
+    authorId = (coachInfo && coachInfo.uid) ? coachInfo.uid : "allenatore";
+    authorName = currentUser.displayName || "Allenatore";
+    authorEmail = currentUser.email || "allenatore@atletica.it";
+  } else if (isSamuele) {
+    authorId = currentUser.uid;
+    authorName = currentUser.displayName || "Samuele";
+  }
+
+  const newWorkout = {
+    id: `workout_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    userId: authorId,
+    userName: authorName,
+    userEmail: authorEmail,
+    date: w.date,
+    title: w.title || "",
+    categories: Array.isArray(w.categories) ? [...w.categories] : ["velocita"],
+    specifiche: w.specifiche || "",
+    tempiCarichi: w.tempiCarichi || "",
+    notes: w.notes || "",
+    createdAt: new Date().toISOString()
+  };
+
+  try {
+    const docRef = doc(db, "workouts", newWorkout.id);
+    await setDoc(docRef, {
+      ...newWorkout,
+      createdAt: serverTimestamp()
+    });
+  } catch (err) {
+    console.warn("Salvataggio copia Firestore:", err);
+  }
+
+  allWorkouts.unshift(newWorkout);
+  saveLocalWorkoutsCache();
+
+  showToast(`Allenamento copiato nel tuo diario! 📋 Ora puoi modificarlo con ✏️.`, "success");
+
+  // Se il modale di dettaglio giornata è aperto, aggiorniamone il contenuto subito per mostrare la nuova sessione
+  if (dayDetailModal && !dayDetailModal.classList.contains("hidden")) {
+    const dayDate = new Date(w.date + "T00:00:00");
+    const updatedSquadWorkouts = allWorkouts.filter(item => item.date === w.date);
+    openDayDetailModal(dayDate, updatedSquadWorkouts);
+  }
+
+  refreshActiveViews();
 }
 
 // Avvia la modalità di modifica di un proprio allenamento
