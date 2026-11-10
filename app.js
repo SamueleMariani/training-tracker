@@ -806,19 +806,14 @@ function setupAuthListener() {
       updateCoachStatusUI();
       showToast(`Benvenuto, ${user.displayName || user.email}!`, "success");
     } else {
-      // Non autenticato: l'utente può esplorare e visualizzare tutto ("va bene che tutti possano vedee tutto, opzionalmente")
+      // Non autenticato: nessun dato visibile, mostra solo la schermata di login pulita
       appRole = "ospite";
-      activeAthleteId = "allenatore";
-      loginGate.classList.add("hidden");
-      authenticatedApp.classList.remove("hidden");
-      athleteSwitcherBar.classList.remove("hidden");
+      currentUser = null;
+      loginGate.classList.remove("hidden");
+      authenticatedApp.classList.add("hidden");
+      athleteSwitcherBar.classList.add("hidden");
 
       renderAuthUI(null);
-      updateAthleteDropdowns();
-      updateAthleteSwitcherUI();
-      renderCategoryChips();
-      refreshActiveViews();
-      updateCoachStatusUI();
     }
   });
 }
