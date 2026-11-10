@@ -308,6 +308,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupAuthListener();
   listenToFirestore();
   listenToCoachConfig();
+  listenToUsers();
 });
 
 // --- 7. CARICAMENTO E PERSISTENZA STATO LOCALE ---
@@ -400,6 +401,146 @@ async function listenToCoachConfig() {
   } catch (e) {
     console.warn("Ascolto config coach:", e);
   }
+}
+
+// --- 8B. GESTIONE CENTRALIZZATA UTENTI SU FIRESTORE ---
+async function listenToUsers() {
+  try {
+    const usersCol = collection(db, "users");
+    onSnapshot(usersCol, (snapshot) => {
+      snapshot.forEach((docSnap) => {
+        const u = docSnap.data();
+        const docId = docSnap.id;
+        const uid = u.uid || docId;
+        const emailLower = (u.email || "").toLowerCase();
+        const nameLower = (u.name || "").toLowerCase();
+
+        const isCoach = (u.role === "allenatore") ||
+                        (coachInfo && coachInfo.uid && (coachInfo.uid === uid || coachInfo.uid === docId)) ||
+                        emailLower.includes("allenatore");
+
+        const isSamuele = (u.role === "admin") ||
+                          emailLower.includes("samuele") ||
+                          emailLower === "admin@trainingtracker.it" ||
+                          nameLower.includes("samuele");
+
+        if (isCoach) {
+          registeredUsers.allenatore = {
+            id: "allenatore",
+            uid: uid,
+            name: u.name || "Allenatore",
+            email: u.email || "allenatore@atletica.it",
+            role: "allenatore",
+            avatar: "📋",
+            claimed: true
+          };
+          if (docId !== "allenatore") delete registeredUsers[docId];
+          if (uid !== "allenatore") delete registeredUsers[uid];
+        } else if (isSamuele) {
+          registeredUsers.samuele_admin = {
+            id: "samuele_admin",
+            uid: uid,
+            name: u.name || "Samuele Mariani",
+            email: u.email || "samuele@trainingtracker.it",
+            role: "admin",
+            avatar: "👑"
+          };
+          if (docId !== "samuele_admin") delete registeredUsers[docId];
+          if (uid !== "samuele_admin") delete registeredUsers[uid];
+        } else {
+          // Atleta reale registrato
+          registeredUsers[uid] = {
+            id: uid,
+            uid: uid,
+            name: u.name || (u.email ? u.email.split("@")[0] : "Atleta"),
+            email: u.email || "",
+            role: u.role || "atleta",
+            avatar: u.avatar || "🏃"
+          };
+        }
+      });
+
+      // Estrai atleti da allenamenti storici nel database se non ancora presenti
+      extractUsersFromWorkouts();
+
+      saveLocalUsers();
+      updateAthleteDropdowns();
+      updateAthleteSwitcherUI();
+      renderTeamOverview();
+    }, (error) => {
+      console.warn("Ascolto utenti Firestore:", error);
+    });
+  } catch (err) {
+    console.warn("Errore listenToUsers:", err);
+  }
+}
+
+async function syncUserToFirestore(user, explicitRole = null) {
+  if (!user || !user.uid) return;
+  try {
+    const emailLower = (user.email || "").toLowerCase();
+    let effectiveRole = explicitRole || appRole;
+    if (!effectiveRole || effectiveRole === "ospite") {
+      if (emailLower.includes("samuele") || emailLower === "admin@trainingtracker.it") {
+        effectiveRole = "admin";
+      } else if (coachInfo && coachInfo.claimed && (coachInfo.uid === user.uid || coachInfo.email === user.email)) {
+        effectiveRole = "allenatore";
+      } else {
+        effectiveRole = "atleta";
+      }
+    }
+
+    const userDocRef = doc(db, "users", user.uid);
+    const displayName = user.displayName || user.email.split("@")[0];
+    const userData = {
+      uid: user.uid,
+      name: displayName,
+      email: user.email,
+      role: effectiveRole,
+      avatar: effectiveRole === "admin" ? "👑" : (effectiveRole === "allenatore" ? "📋" : "🏃"),
+      lastSeen: serverTimestamp()
+    };
+    await setDoc(userDocRef, userData, { merge: true });
+  } catch (e) {
+    console.warn("Errore syncUserToFirestore:", e);
+  }
+}
+
+function extractUsersFromWorkouts() {
+  if (!allWorkouts || allWorkouts.length === 0) return;
+  const coachUid = coachInfo && coachInfo.uid;
+  const samueleUid = registeredUsers.samuele_admin && registeredUsers.samuele_admin.uid;
+
+  allWorkouts.forEach(w => {
+    if (!w.userId) return;
+    const isCoach = (w.userId === "allenatore") || (coachUid && w.userId === coachUid);
+    const isSamuele = (w.userId === "samuele_admin") ||
+                      (samueleUid && w.userId === samueleUid) ||
+                      (w.userEmail && w.userEmail.toLowerCase().includes("samuele"));
+
+    if (!isCoach && !isSamuele && !registeredUsers[w.userId]) {
+      const athleteName = w.userName || "Atleta";
+      registeredUsers[w.userId] = {
+        id: w.userId,
+        uid: w.userId,
+        name: athleteName,
+        email: w.userEmail || "",
+        role: "atleta",
+        avatar: "🏃"
+      };
+
+      try {
+        setDoc(doc(db, "users", w.userId), {
+          uid: w.userId,
+          name: athleteName,
+          email: w.userEmail || "",
+          role: "atleta",
+          avatar: "🏃",
+          lastSeen: serverTimestamp()
+        }, { merge: true }).catch(() => {});
+      } catch (err) {}
+    }
+  });
 }
 
 function applyCoachAssignment() {
@@ -546,6 +687,7 @@ async function listenToFirestore() {
         });
         allWorkouts = firestoreList;
         saveLocalWorkoutsCache();
+        extractUsersFromWorkouts();
       } else {
         seedCoachWorkoutsToFirestore(false);
       }
@@ -658,6 +800,7 @@ function setupAuthListener() {
       athleteSwitcherBar.classList.remove("hidden");
 
       renderAuthUI(user);
+      syncUserToFirestore(user, appRole);
       updateAthleteDropdowns();
       updateAthleteSwitcherUI();
       renderCategoryChips();
@@ -691,6 +834,9 @@ function renderAuthUI(user) {
     
     // Check if user signed in with email/password (show Change Password button)
     const isEmailUser = user.providerData && user.providerData.some(p => p.providerId === "password");
+    const changePwBtn = isEmailUser 
+      ? `<button id="btnChangePassword" class="btn btn-accent btn-sm" title="Cambia Password">🔑 Cambio PW</button>` 
+      : "";
 
     profile.innerHTML = `
       <img src="${avatarSrc}" class="user-avatar" alt="Avatar" />
@@ -699,7 +845,7 @@ function renderAuthUI(user) {
         <span class="user-role-tag">${appRole.toUpperCase()}</span>
       </div>
       <div class="user-actions">
-        <button id="btnChangePassword" class="btn btn-accent btn-sm" title="Cambia Password">🔑</button>
+        ${changePwBtn}
         <button id="btnLogout" class="btn btn-secondary btn-sm" title="Disconnettiti">Esci</button>
       </div>
     `;
@@ -710,13 +856,12 @@ function renderAuthUI(user) {
       showToast("Disconnessione effettuata", "success");
     });
 
-    document.getElementById("btnChangePassword").addEventListener("click", () => {
-      if (isEmailUser) {
-        openChangePasswordModal();
-      } else {
-        showToast("Il cambio password è disponibile solo per account con Email e Password, non per accessi Google.", "error");
+    if (isEmailUser) {
+      const btnChangePw = document.getElementById("btnChangePassword");
+      if (btnChangePw) {
+        btnChangePw.addEventListener("click", () => openChangePasswordModal());
       }
-    });
+    }
   } else {
     const loginBtn = document.createElement("button");
     loginBtn.className = "btn btn-primary btn-sm";
@@ -906,7 +1051,8 @@ function getVisibleWorkouts() {
       return w.userId === "allenatore" || (coachInfo && w.userId === coachInfo.uid) || (w.userEmail && w.userEmail.includes("allenatore"));
     }
     if (activeAthleteId === "samuele_admin") {
-      return w.userId === "samuele_admin" || (w.userEmail && w.userEmail.includes("samuele"));
+      const samUid = registeredUsers.samuele_admin && registeredUsers.samuele_admin.uid;
+      return w.userId === "samuele_admin" || (samUid && w.userId === samUid) || (w.userEmail && w.userEmail.toLowerCase().includes("samuele"));
     }
     return w.userId === activeAthleteId;
   });
@@ -1761,6 +1907,7 @@ emailAuthForm.addEventListener("submit", async (e) => {
       await updateProfile(user, { displayName });
 
       localStorage.setItem(`tt_user_role_${user.uid}`, chosenRole);
+      await syncUserToFirestore(user, chosenRole);
 
       if (chosenRole === "allenatore") {
         await claimCoachSlot(user, displayName);
