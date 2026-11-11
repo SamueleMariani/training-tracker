@@ -358,6 +358,12 @@ const carrelloAlertBox = document.getElementById("carrelloAlertBox");
 const carrelloNeverAthletesList = document.getElementById("carrelloNeverAthletesList");
 const carrelloLeaderTable = document.getElementById("carrelloLeaderTable");
 const carrelloLeaderTbody = document.getElementById("carrelloLeaderTbody");
+const statCarrelloTop1 = document.getElementById("statCarrelloTop1");
+const statCarrelloTop1Count = document.getElementById("statCarrelloTop1Count");
+const statCarrelloTop2 = document.getElementById("statCarrelloTop2");
+const statCarrelloTop2Count = document.getElementById("statCarrelloTop2Count");
+const statCarrelloNever = document.getElementById("statCarrelloNever");
+const statCarrelloNeverCount = document.getElementById("statCarrelloNeverCount");
 
 // Backup & Restore Admin DOM Elements
 const adminBackupModal = document.getElementById("adminBackupModal");
@@ -2952,6 +2958,71 @@ function renderCarrelloLeaderboard() {
     stats.sort((a, b) => a.count - b.count || a.athlete.name.localeCompare(b.athlete.name));
   } else {
     stats.sort((a, b) => b.count - a.count || a.athlete.name.localeCompare(b.athlete.name));
+  }
+
+  // --- Riepilogo Statistiche Carrello (Stile Sezione Pagelle) ---
+  const sortedByMost = [...stats].sort((a, b) => b.count - a.count || a.athlete.name.localeCompare(b.athlete.name));
+  const zeroHelpers = stats.filter(s => s.count === 0);
+
+  // 1. Re del carrello (chi lo ha messo via più volte)
+  if (statCarrelloTop1 && statCarrelloTop1Count) {
+    if (sortedByMost.length > 0 && sortedByMost[0].count > 0) {
+      const maxCount = sortedByMost[0].count;
+      const topAthletes = sortedByMost.filter(s => s.count === maxCount);
+      if (topAthletes.length === 1) {
+        statCarrelloTop1.textContent = topAthletes[0].athlete.name;
+        statCarrelloTop1Count.textContent = `${maxCount} ${maxCount === 1 ? 'volta' : 'volte'} (${topAthletes[0].pct}%)`;
+      } else {
+        const names = topAthletes.map(s => s.athlete.name).join(", ");
+        statCarrelloTop1.textContent = names.length > 22 ? names.substring(0, 20) + "..." : names;
+        statCarrelloTop1.title = names;
+        statCarrelloTop1Count.textContent = `Pari merito: ${maxCount} volte (${topAthletes[0].pct}%)`;
+      }
+    } else {
+      statCarrelloTop1.textContent = "Nessuno ancora";
+      statCarrelloTop1Count.textContent = "0 volte";
+    }
+  }
+
+  // 2. Secondo Aiutante
+  if (statCarrelloTop2 && statCarrelloTop2Count) {
+    const maxCount = sortedByMost.length > 0 ? sortedByMost[0].count : 0;
+    const secondCandidates = sortedByMost.filter(s => s.count < maxCount && s.count > 0);
+    if (secondCandidates.length > 0) {
+      const secondMax = secondCandidates[0].count;
+      const secondAthletes = secondCandidates.filter(s => s.count === secondMax);
+      if (secondAthletes.length === 1) {
+        statCarrelloTop2.textContent = secondAthletes[0].athlete.name;
+        statCarrelloTop2Count.textContent = `${secondMax} ${secondMax === 1 ? 'volta' : 'volte'} (${secondAthletes[0].pct}%)`;
+      } else {
+        const names = secondAthletes.map(s => s.athlete.name).join(", ");
+        statCarrelloTop2.textContent = names.length > 22 ? names.substring(0, 20) + "..." : names;
+        statCarrelloTop2.title = names;
+        statCarrelloTop2Count.textContent = `Pari merito: ${secondMax} volte (${secondAthletes[0].pct}%)`;
+      }
+    } else if (sortedByMost.length > 1 && sortedByMost[0].count > 0 && sortedByMost[1].count === maxCount) {
+      statCarrelloTop2.textContent = "Pari merito al 1° posto";
+      statCarrelloTop2Count.textContent = `${maxCount} volte`;
+    } else {
+      statCarrelloTop2.textContent = "-";
+      statCarrelloTop2Count.textContent = "0 volte";
+    }
+  }
+
+  // 3. I Fantasmi (Chi non lo mette mai via)
+  if (statCarrelloNever && statCarrelloNeverCount) {
+    if (zeroHelpers.length > 0 && totalDays > 0) {
+      const names = zeroHelpers.map(s => s.athlete.name).join(", ");
+      statCarrelloNever.textContent = names.length > 24 ? names.substring(0, 22) + "..." : names;
+      statCarrelloNever.title = names;
+      statCarrelloNeverCount.textContent = `${zeroHelpers.length} ${zeroHelpers.length === 1 ? 'atleta (MAI)' : 'atleti (MAI)'}`;
+    } else if (totalDays === 0) {
+      statCarrelloNever.textContent = "Nessuna data";
+      statCarrelloNeverCount.textContent = "0 sedute registrate";
+    } else {
+      statCarrelloNever.textContent = "Nessuno! 🎉";
+      statCarrelloNeverCount.textContent = "Tutti hanno aiutato";
+    }
   }
 
   // Sezione allerta "Chi non lo ha MAI messo via"

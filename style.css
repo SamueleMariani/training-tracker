@@ -2735,4 +2735,10 @@ input:focus, textarea:focus {
   gap: 8px;
 }
 
+.carrello-stats-grid {
+  margin-top: 14px;
+  margin-bottom: 20px;
+}
+
+
 

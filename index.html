@@ -429,6 +429,39 @@
               </div>
             </div>
 
+            <!-- Podio & Statistiche Carrello (Stile Sezione Pagelle) -->
+            <div class="pagelle-stats-grid carrello-stats-grid" style="margin-top: 14px; margin-bottom: 18px;">
+              <!-- 1. Il Più Generoso / Re del Carrello -->
+              <div class="pagelle-stat-card stat-best">
+                <span class="pagelle-stat-icon">👑</span>
+                <div class="pagelle-stat-info">
+                  <span class="pagelle-stat-label">Re del Carrello (Più Volte)</span>
+                  <h4 id="statCarrelloTop1">-</h4>
+                  <span class="pagelle-stat-count" id="statCarrelloTop1Count">0 volte</span>
+                </div>
+              </div>
+
+              <!-- 2. Secondo Aiutante -->
+              <div class="pagelle-stat-card stat-worst" style="border-left-color: #10b981; background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, var(--bg-card) 60%);">
+                <span class="pagelle-stat-icon">🥈</span>
+                <div class="pagelle-stat-info">
+                  <span class="pagelle-stat-label">Secondo Aiutante</span>
+                  <h4 id="statCarrelloTop2">-</h4>
+                  <span class="pagelle-stat-count" id="statCarrelloTop2Count">0 volte</span>
+                </div>
+              </div>
+
+              <!-- 3. Il Fantasma (Chi non lo mette mai via) -->
+              <div class="pagelle-stat-card stat-rage">
+                <span class="pagelle-stat-icon">👻</span>
+                <div class="pagelle-stat-info">
+                  <span class="pagelle-stat-label">Fantasmi del Carrello (MAI)</span>
+                  <h4 id="statCarrelloNever">-</h4>
+                  <span class="pagelle-stat-count" id="statCarrelloNeverCount">0 atleti (MAI)</span>
+                </div>
+              </div>
+            </div>
+
             <!-- Box di allerta per chi non lo ha MAI messo via -->
             <div id="carrelloAlertBox" class="carrello-alert-box" style="display: none;">
               <div class="carrello-alert-header">
