@@ -382,6 +382,13 @@
             </div>
           </div>
 
+          <!-- Scorciatoie Rapide Squadra -->
+          <div class="team-subnav-pills" style="display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 16px 0;">
+            <a href="#teamRosterGrid" class="btn btn-secondary btn-xs" style="text-decoration: none;">👤 Roster Squadra</a>
+            <a href="#carrelloSection" class="btn btn-primary btn-xs" style="text-decoration: none;">🛒 Registro Carrello & Re del Carrello</a>
+            <a href="#teamComparisonTable" class="btn btn-secondary btn-xs" style="text-decoration: none;">📊 Tabella Mese</a>
+          </div>
+
           <!-- Roster Atleti Card Grid -->
           <div class="team-roster-grid" id="teamRosterGrid">
             <!-- Popolato dinamicamente -->
@@ -410,7 +417,7 @@
           </div>
 
           <!-- Sezione Registro Carrello Attrezzi -->
-          <div class="team-carrello-wrapper">
+          <div class="team-carrello-wrapper" id="carrelloSection">
             <div class="carrello-header-flex">
               <div>
                 <h3 class="section-subtitle" style="display: flex; align-items: center; gap: 8px;">
@@ -537,6 +544,15 @@
               <span class="pagelle-stat-label">Campione "Gira Coglioni"</span>
               <h4 id="statLeaderRage">-</h4>
               <span class="pagelle-stat-count" id="statCountRage">0 nomination</span>
+            </div>
+          </div>
+
+          <div class="pagelle-stat-card stat-carrello" style="border-left: 4px solid #38bdf8; background: linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, var(--bg-card) 60%);">
+            <span class="pagelle-stat-icon">🛒</span>
+            <div class="pagelle-stat-info">
+              <span class="pagelle-stat-label">Re del Carrello</span>
+              <h4 id="statLeaderCarrello">-</h4>
+              <span class="pagelle-stat-count" id="statCountCarrello">0 volte</span>
             </div>
           </div>
         </div>

@@ -343,6 +343,8 @@ const statLeaderWorst = document.getElementById("statLeaderWorst");
 const statCountWorst = document.getElementById("statCountWorst");
 const statLeaderRage = document.getElementById("statLeaderRage");
 const statCountRage = document.getElementById("statCountRage");
+const statLeaderCarrello = document.getElementById("statLeaderCarrello");
+const statCountCarrello = document.getElementById("statCountCarrello");
 
 // Carrello Attrezzi DOM Elements
 const dayModalCarrelloCard = document.getElementById("dayModalCarrelloCard");
@@ -2630,6 +2632,21 @@ function renderCoachPagelle() {
 
   if (statLeaderRage) statLeaderRage.textContent = leaderRage.name;
   if (statCountRage) statCountRage.textContent = `${leaderRage.count} ${leaderRage.count === 1 ? 'nomination' : 'nomination'}`;
+
+  // 4. Re del carrello per la scheda Hall of Fame in Pagelle
+  if (statLeaderCarrello && statCountCarrello) {
+    const counterCarrello = {};
+    Object.values(allCarrello).forEach(c => {
+      if (c && c.helperNames && Array.isArray(c.helperNames)) {
+        c.helperNames.forEach(name => {
+          if (name) counterCarrello[name] = (counterCarrello[name] || 0) + 1;
+        });
+      }
+    });
+    const leaderCarrello = getLeader(counterCarrello);
+    statLeaderCarrello.textContent = leaderCarrello.name;
+    statCountCarrello.textContent = `${leaderCarrello.count} ${leaderCarrello.count === 1 ? 'volta' : 'volte'}`;
+  }
 
   // 2. Storico delle pagelle
   if (pagelleCountBadge) {
