@@ -137,6 +137,16 @@ export const CATEGORIES = {
     icon: "🦘",
     coachOnly: false
   },
+  gradoni: {
+    id: "gradoni",
+    label: "Gradoni",
+    accent: "#E11D48",
+    bg: "#FFE4E6",
+    border: "#BE123C",
+    color: "#881337",
+    icon: "🪜",
+    coachOnly: false
+  },
   fondo_lento: {
     id: "fondo_lento",
     label: "Fondo Lento",
