@@ -399,6 +399,56 @@
               </table>
             </div>
           </div>
+
+          <!-- Sezione Registro Carrello Attrezzi -->
+          <div class="team-carrello-wrapper">
+            <div class="carrello-header-flex">
+              <div>
+                <h3 class="section-subtitle" style="display: flex; align-items: center; gap: 8px;">
+                  🛒 Registro Carrello Attrezzi (Chi lo mette via?)
+                  <span class="badge badge-accent" id="carrelloTotalDaysBadge">0 giornate</span>
+                </h3>
+                <p class="text-dim text-sm" style="margin-top: 4px;">Monitoraggio costante delle sedute dal lunedì al venerdì: scopri chi aiuta regolarmente e chi non lo mette mai via!</p>
+              </div>
+              <div class="carrello-sort-options">
+                <button type="button" id="btnSortCarrelloLeast" class="btn btn-secondary btn-xs active" title="Mostra prima chi non aiuta">
+                  ⚠️ Chi non aiuta mai
+                </button>
+                <button type="button" id="btnSortCarrelloMost" class="btn btn-secondary btn-xs" title="Mostra prima chi aiuta di più">
+                  🏆 Chi aiuta di più
+                </button>
+              </div>
+            </div>
+
+            <!-- Box di allerta per chi non lo ha MAI messo via -->
+            <div id="carrelloAlertBox" class="carrello-alert-box" style="display: none;">
+              <div class="carrello-alert-header">
+                <span class="alert-icon">🚨</span>
+                <span class="alert-title">Atleti che non hanno MAI messo via il carrello:</span>
+              </div>
+              <div id="carrelloNeverAthletesList" class="carrello-never-chips">
+                <!-- Popolato da JS -->
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="team-table" id="carrelloLeaderTable">
+                <thead>
+                  <tr>
+                    <th>Atleta</th>
+                    <th>Ruolo</th>
+                    <th>Volte Messo Via</th>
+                    <th>% Giornate</th>
+                    <th>Ultima Volta</th>
+                    <th>Stato Aiuto</th>
+                  </tr>
+                </thead>
+                <tbody id="carrelloLeaderTbody">
+                  <!-- Generato da JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -645,8 +695,39 @@
         <h3 id="dayModalTitle">Allenamenti del Giorno</h3>
         <button type="button" id="btnCloseDayModal" class="btn-modal-close">&times;</button>
       </div>
-      <div class="modal-body" id="dayModalBody">
-        <!-- Renderizzato da JS -->
+      <div class="modal-body">
+        <!-- Sezione Carrello Attrezzi Giornaliero -->
+        <div id="dayModalCarrelloCard" class="day-modal-carrello-card">
+          <div class="day-carrello-header">
+            <div class="day-carrello-title-group">
+              <span class="day-carrello-icon">🛒</span>
+              <div>
+                <h4 class="day-carrello-title">Carrello Attrezzi del Giorno</h4>
+                <p class="day-carrello-subtitle">Chi ha messo via il carrello oggi? (Seleziona uno o più atleti)</p>
+              </div>
+            </div>
+            <span id="dayModalCarrelloBadge" class="badge">Nessuno registrato</span>
+          </div>
+
+          <!-- Multiselect Chips Atleti -->
+          <div id="dayModalCarrelloChips" class="carrello-chips-picker">
+            <!-- Popolato dinamicamente da JS -->
+          </div>
+
+          <div class="day-carrello-actions">
+            <button type="button" id="btnSaveDayCarrello" class="btn btn-primary btn-xs">
+              💾 Salva Responsabili
+            </button>
+            <button type="button" id="btnClearDayCarrello" class="btn btn-secondary btn-xs">
+              Azzera Selezione
+            </button>
+            <span id="dayCarrelloSaveMsg" class="text-xs text-dim"></span>
+          </div>
+        </div>
+
+        <div id="dayModalBody">
+          <!-- Renderizzato da JS -->
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" id="btnDayModalAddWorkout" class="btn btn-primary btn-sm">

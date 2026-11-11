@@ -214,6 +214,10 @@ let activeAthleteId = "allenatore"; // profilo attualmente selezionato per la vi
 let viewMode = "single"; // 'single' (scheda singolo atleta) | 'all' (tutta la squadra)
 let allWorkouts = [];
 let allPagelle = [];
+let allCarrello = {}; // Key: "YYYY-MM-DD" -> { id, date, helperIds: [], helperNames: [], updatedAt, updatedBy }
+let carrelloSortMode = "least"; // "least" (chi non aiuta mai in cima) | "most" (chi aiuta di più)
+let currentModalDateIso = "";
+let selectedCarrelloUids = new Set();
 let selectedCategoriesForNewWorkout = new Set();
 
 function getMonday(d) {
@@ -340,6 +344,21 @@ const statCountWorst = document.getElementById("statCountWorst");
 const statLeaderRage = document.getElementById("statLeaderRage");
 const statCountRage = document.getElementById("statCountRage");
 
+// Carrello Attrezzi DOM Elements
+const dayModalCarrelloCard = document.getElementById("dayModalCarrelloCard");
+const dayModalCarrelloBadge = document.getElementById("dayModalCarrelloBadge");
+const dayModalCarrelloChips = document.getElementById("dayModalCarrelloChips");
+const btnSaveDayCarrello = document.getElementById("btnSaveDayCarrello");
+const btnClearDayCarrello = document.getElementById("btnClearDayCarrello");
+const dayCarrelloSaveMsg = document.getElementById("dayCarrelloSaveMsg");
+const carrelloTotalDaysBadge = document.getElementById("carrelloTotalDaysBadge");
+const btnSortCarrelloLeast = document.getElementById("btnSortCarrelloLeast");
+const btnSortCarrelloMost = document.getElementById("btnSortCarrelloMost");
+const carrelloAlertBox = document.getElementById("carrelloAlertBox");
+const carrelloNeverAthletesList = document.getElementById("carrelloNeverAthletesList");
+const carrelloLeaderTable = document.getElementById("carrelloLeaderTable");
+const carrelloLeaderTbody = document.getElementById("carrelloLeaderTbody");
+
 // Toast
 const toast = document.getElementById("toast");
 
@@ -354,6 +373,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupNavigationTabs();
   setupEventListeners();
   setupPagelleEventListeners();
+  setupCarrelloEventListeners();
   updateAthleteDropdowns();
   updateAthleteSwitcherUI();
   updateCoachStatusUI();
@@ -364,6 +384,7 @@ document.addEventListener("DOMContentLoaded", () => {
   listenToCoachConfig();
   listenToUsers();
   listenToPagelle();
+  listenToCarrello();
 });
 
 // --- 7. CARICAMENTO E PERSISTENZA STATO LOCALE ---
@@ -427,6 +448,15 @@ function loadLocalState() {
     try {
       coachInfo = JSON.parse(cachedCoach);
     } catch (e) {}
+  }
+
+  const cachedCarrello = localStorage.getItem("tt_carrello");
+  if (cachedCarrello) {
+    try {
+      allCarrello = JSON.parse(cachedCarrello);
+    } catch (e) {
+      allCarrello = {};
+    }
   }
 }
 
@@ -1200,6 +1230,35 @@ function createWeekDayCell(weekdayName, cellDate, isToday = false, dayWorkouts =
   `;
   cell.appendChild(header);
 
+  // Badge Carrello Attrezzi Giornaliero (Lun-Ven o con aiutanti assegnati)
+  const dateIso = formatDateToISO(cellDate);
+  const dayCarrello = allCarrello[dateIso];
+  const dayOfWeek = cellDate.getDay(); // 0: Dom, 1: Lun ... 5: Ven, 6: Sab
+  const isWeekday = (dayOfWeek >= 1 && dayOfWeek <= 5);
+
+  const carrelloBadge = document.createElement("div");
+  if (dayCarrello && dayCarrello.helperNames && dayCarrello.helperNames.length > 0) {
+    const names = dayCarrello.helperNames.join(", ");
+    carrelloBadge.className = "week-carrello-badge has-helpers";
+    carrelloBadge.title = `Carrello messo via da: ${names}`;
+    carrelloBadge.innerHTML = `<span class="cart-icon">🛒</span> <span class="cart-names">${escapeHtml(names)}</span>`;
+  } else if (isWeekday) {
+    carrelloBadge.className = "week-carrello-badge empty-weekday";
+    carrelloBadge.title = "Clicca per indicare chi ha messo via il carrello oggi";
+    carrelloBadge.innerHTML = `<span class="cart-icon">🛒</span> <span class="cart-placeholder">+ Chi mette via?</span>`;
+  } else {
+    carrelloBadge.className = "week-carrello-badge weekend-empty";
+    carrelloBadge.innerHTML = `<span class="cart-icon">🛒</span> <span class="cart-placeholder">-</span>`;
+  }
+
+  carrelloBadge.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const squadWorkouts = allWorkouts.filter(item => item.date === dateIso);
+    openDayDetailModal(cellDate, squadWorkouts);
+  });
+
+  cell.appendChild(carrelloBadge);
+
   // Contenitore delle sessioni
   const workoutsContainer = document.createElement("div");
   workoutsContainer.className = "week-workouts-container";
@@ -1264,16 +1323,11 @@ function createWeekDayCell(weekdayName, cellDate, isToday = false, dayWorkouts =
 
   cell.appendChild(workoutsContainer);
 
-  // Click su tutta la cella del giorno
+  // Click su tutta la cella del giorno: apre sempre il dettaglio giornata (con carrello e sessioni)
   cell.addEventListener("click", () => {
     const dateIso = formatDateToISO(cellDate);
     const squadWorkouts = allWorkouts.filter(item => item.date === dateIso);
-    if (squadWorkouts.length > 0) {
-      openDayDetailModal(cellDate, squadWorkouts);
-    } else {
-      workoutDate.valueAsDate = cellDate;
-      document.querySelector('[data-tab="tabNew"]').click();
-    }
+    openDayDetailModal(cellDate, squadWorkouts);
   });
 
   return cell;
@@ -1960,6 +2014,9 @@ function renderTeamOverview() {
     });
     teamComparisonTbody.appendChild(tr);
   });
+
+  // Renderizza la classifica carrello
+  renderCarrelloLeaderboard();
 }
 
 btnSyncExcelData.addEventListener("click", () => {
@@ -1978,6 +2035,9 @@ function openDayDetailModal(dateObj, dayWorkouts) {
   const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
   const dateFormatted = dateObj.toLocaleDateString('it-IT', options);
   dayModalTitle.textContent = `Allenamenti di ${dateFormatted}`;
+
+  currentModalDateIso = formatDateToISO(dateObj);
+  setupDayModalCarrello(currentModalDateIso);
 
   dayModalBody.innerHTML = "";
 
@@ -2618,6 +2678,347 @@ function renderCoachPagelle() {
 
     pagelleHistoryList.appendChild(item);
   });
+}
+
+// ==========================================
+// --- 21. GESTIONE CARRELLO ATTREZZI SQUADRA ---
+// ==========================================
+
+function listenToCarrello() {
+  try {
+    const colRef = collection(db, "carrello");
+    onSnapshot(colRef, (snapshot) => {
+      allCarrello = {};
+      snapshot.forEach(docSnap => {
+        allCarrello[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+      });
+      try {
+        localStorage.setItem("tt_carrello", JSON.stringify(allCarrello));
+      } catch (e) {}
+
+      renderCalendar();
+      renderCarrelloLeaderboard();
+    }, (err) => {
+      console.warn("Firestore carrello snapshot error:", err);
+    });
+  } catch (err) {
+    console.warn("Errore listener carrello:", err);
+  }
+}
+
+function getCarrelloAthletesList() {
+  const list = [];
+  const seen = new Set();
+
+  if (registeredUsers.samuele_admin) {
+    list.push(registeredUsers.samuele_admin);
+    seen.add("samuele_admin");
+    if (registeredUsers.samuele_admin.uid) seen.add(registeredUsers.samuele_admin.uid);
+  }
+
+  Object.values(registeredUsers).forEach(u => {
+    if (!u || !u.id) return;
+    const isSamuele = u.id === "samuele_admin" ||
+                      (registeredUsers.samuele_admin && registeredUsers.samuele_admin.uid === u.id) ||
+                      (u.email && u.email.toLowerCase().includes("samuele")) ||
+                      (u.name && u.name.toLowerCase().includes("samuele"));
+    const isCoach = u.id === "allenatore" ||
+                    (coachInfo && coachInfo.uid === u.id) ||
+                    (u.role === "allenatore");
+
+    if (!isSamuele && !isCoach && !seen.has(u.id)) {
+      seen.add(u.id);
+      if (u.uid) seen.add(u.uid);
+      list.push(u);
+    }
+  });
+
+  return list;
+}
+
+function getAthleteDisplayName(id) {
+  if (!id) return "Atleta";
+  if (registeredUsers[id] && registeredUsers[id].name) return registeredUsers[id].name;
+  if (id === "samuele_admin" || (registeredUsers.samuele_admin && registeredUsers.samuele_admin.uid === id)) {
+    return registeredUsers.samuele_admin.name || "Samuele Mariani";
+  }
+  if (id === "allenatore" || (coachInfo && coachInfo.uid === id)) {
+    return coachInfo && coachInfo.name ? coachInfo.name : "Allenatore";
+  }
+  const found = Object.values(registeredUsers).find(u => u && (u.uid === id || u.id === id));
+  if (found && found.name) return found.name;
+  return id;
+}
+
+function setupDayModalCarrello(dateIso) {
+  if (!dayModalCarrelloCard) return;
+
+  if (dayCarrelloSaveMsg) dayCarrelloSaveMsg.textContent = "";
+
+  const entry = allCarrello[dateIso];
+  if (entry && entry.helperIds && Array.isArray(entry.helperIds)) {
+    selectedCarrelloUids = new Set(entry.helperIds);
+  } else {
+    selectedCarrelloUids = new Set();
+  }
+
+  renderDayModalCarrelloChips();
+  updateDayModalCarrelloBadge();
+}
+
+function renderDayModalCarrelloChips() {
+  if (!dayModalCarrelloChips) return;
+  dayModalCarrelloChips.innerHTML = "";
+
+  const athletes = getCarrelloAthletesList();
+  athletes.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  if (athletes.length === 0) {
+    dayModalCarrelloChips.innerHTML = `<span class="text-dim text-xs">Nessun atleta registrato disponibile</span>`;
+    return;
+  }
+
+  athletes.forEach(ath => {
+    const isSelected = selectedCarrelloUids.has(ath.id) || (ath.uid && selectedCarrelloUids.has(ath.uid));
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `carrello-chip-btn ${isSelected ? 'selected' : ''}`;
+    btn.dataset.uid = ath.id;
+    btn.innerHTML = `
+      <span class="chip-status-icon">${isSelected ? '✓' : '+'}</span>
+      <span class="chip-avatar">${ath.avatar || '🏃'}</span>
+      <span class="chip-name">${escapeHtml(ath.name)}</span>
+    `;
+
+    btn.addEventListener("click", () => {
+      const idToToggle = ath.id;
+      if (selectedCarrelloUids.has(idToToggle) || (ath.uid && selectedCarrelloUids.has(ath.uid))) {
+        selectedCarrelloUids.delete(idToToggle);
+        if (ath.uid) selectedCarrelloUids.delete(ath.uid);
+        btn.classList.remove("selected");
+        const icon = btn.querySelector(".chip-status-icon");
+        if (icon) icon.textContent = "+";
+      } else {
+        selectedCarrelloUids.add(idToToggle);
+        btn.classList.add("selected");
+        const icon = btn.querySelector(".chip-status-icon");
+        if (icon) icon.textContent = "✓";
+      }
+      updateDayModalCarrelloBadge();
+    });
+
+    dayModalCarrelloChips.appendChild(btn);
+  });
+}
+
+function updateDayModalCarrelloBadge() {
+  if (!dayModalCarrelloBadge) return;
+  const count = selectedCarrelloUids.size;
+  if (count === 0) {
+    dayModalCarrelloBadge.textContent = "Nessuno registrato";
+    dayModalCarrelloBadge.className = "badge";
+  } else if (count === 1) {
+    dayModalCarrelloBadge.textContent = "1 atleta responsabile";
+    dayModalCarrelloBadge.className = "badge badge-accent";
+  } else {
+    dayModalCarrelloBadge.textContent = `${count} atleti responsabili`;
+    dayModalCarrelloBadge.className = "badge badge-success";
+  }
+}
+
+async function saveDayCarrello() {
+  if (!currentUser) {
+    showToast("Effettua l'accesso per registrare il carrello!", "error");
+    openAuthModal();
+    return;
+  }
+
+  if (!currentModalDateIso) return;
+
+  const helperIds = Array.from(selectedCarrelloUids);
+  const helperNames = helperIds.map(id => getAthleteDisplayName(id));
+
+  try {
+    if (helperIds.length === 0) {
+      await deleteDoc(doc(db, "carrello", currentModalDateIso));
+      delete allCarrello[currentModalDateIso];
+      try {
+        localStorage.setItem("tt_carrello", JSON.stringify(allCarrello));
+      } catch (e) {}
+      showToast("Carrello azzerato per questa data.", "info");
+    } else {
+      const entry = {
+        date: currentModalDateIso,
+        helperIds,
+        helperNames,
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser.displayName || currentUser.email || "Utente",
+        updatedByUid: currentUser.uid
+      };
+      await setDoc(doc(db, "carrello", currentModalDateIso), entry);
+      allCarrello[currentModalDateIso] = { id: currentModalDateIso, ...entry };
+      try {
+        localStorage.setItem("tt_carrello", JSON.stringify(allCarrello));
+      } catch (e) {}
+      showToast(`🛒 Salvato! Carrello: ${helperNames.join(", ")}`, "success");
+    }
+
+    renderCalendar();
+    renderCarrelloLeaderboard();
+  } catch (err) {
+    console.error("Errore salvataggio carrello:", err);
+    showToast("Errore nel salvataggio del carrello: " + err.message, "error");
+  }
+}
+
+function clearDayCarrelloSelection() {
+  selectedCarrelloUids.clear();
+  if (dayModalCarrelloChips) {
+    const chips = dayModalCarrelloChips.querySelectorAll(".carrello-chip-btn");
+    chips.forEach(c => {
+      c.classList.remove("selected");
+      const icon = c.querySelector(".chip-status-icon");
+      if (icon) icon.textContent = "+";
+    });
+  }
+  updateDayModalCarrelloBadge();
+}
+
+function renderCarrelloLeaderboard() {
+  if (!carrelloLeaderTbody) return;
+  carrelloLeaderTbody.innerHTML = "";
+
+  const athletes = getCarrelloAthletesList();
+  const recordedDays = Object.values(allCarrello).filter(c => c && c.helperIds && c.helperIds.length > 0);
+  const totalDays = recordedDays.length;
+
+  if (carrelloTotalDaysBadge) {
+    carrelloTotalDaysBadge.textContent = `${totalDays} ${totalDays === 1 ? 'giornata registrata' : 'giornate registrate'}`;
+  }
+
+  // Calcola statistiche per ogni atleta
+  const stats = athletes.map(ath => {
+    let count = 0;
+    const dutyDates = [];
+
+    recordedDays.forEach(day => {
+      const matchId = day.helperIds.some(id => id === ath.id || (ath.uid && id === ath.uid));
+      const matchName = day.helperNames && day.helperNames.some(name => name.trim().toLowerCase() === ath.name.trim().toLowerCase());
+      if (matchId || matchName) {
+        count++;
+        dutyDates.push(day.date);
+      }
+    });
+
+    dutyDates.sort().reverse();
+    const lastDate = dutyDates.length > 0 ? dutyDates[0] : "Mai";
+    const pct = totalDays > 0 ? Math.round((count / totalDays) * 100) : 0;
+
+    return {
+      athlete: ath,
+      count,
+      pct,
+      lastDate
+    };
+  });
+
+  // Ordina secondo la modalità attiva
+  if (carrelloSortMode === "least") {
+    stats.sort((a, b) => a.count - b.count || a.athlete.name.localeCompare(b.athlete.name));
+  } else {
+    stats.sort((a, b) => b.count - a.count || a.athlete.name.localeCompare(b.athlete.name));
+  }
+
+  // Sezione allerta "Chi non lo ha MAI messo via"
+  const neverHelpers = stats.filter(s => s.count === 0);
+  if (carrelloAlertBox && carrelloNeverAthletesList) {
+    if (neverHelpers.length > 0 && totalDays > 0) {
+      carrelloAlertBox.style.display = "block";
+      carrelloNeverAthletesList.innerHTML = "";
+      neverHelpers.forEach(s => {
+        const span = document.createElement("span");
+        span.className = "badge badge-danger";
+        span.style.padding = "4px 8px";
+        span.style.fontSize = "0.82rem";
+        span.textContent = `❌ ${s.athlete.name} (0 volte)`;
+        carrelloNeverAthletesList.appendChild(span);
+      });
+    } else {
+      carrelloAlertBox.style.display = "none";
+    }
+  }
+
+  if (stats.length === 0) {
+    carrelloLeaderTbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="text-dim" style="text-align: center; padding: 20px;">Nessun atleta presente nel roster.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  stats.forEach(s => {
+    const tr = document.createElement("tr");
+
+    let statusBadge = "";
+    if (s.count === 0) {
+      statusBadge = `<span class="badge badge-danger">🔴 MAI (0 volte)</span>`;
+    } else if (s.count <= 2) {
+      statusBadge = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4);">🟡 Occasionale</span>`;
+    } else {
+      statusBadge = `<span class="badge badge-success">🟢 Pilastro (${s.count})</span>`;
+    }
+
+    const countColor = s.count === 0 ? "#ef4444" : s.count >= 3 ? "#10b981" : "#f59e0b";
+
+    tr.innerHTML = `
+      <td>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.15rem;">${s.athlete.avatar || '🏃'}</span>
+          <strong>${escapeHtml(s.athlete.name)}</strong>
+        </div>
+      </td>
+      <td><span class="role-badge ${s.athlete.role || 'atleta'}">${s.athlete.role || 'atleta'}</span></td>
+      <td>
+        <span class="font-mono" style="font-size: 1.1rem; font-weight: 700; color: ${countColor};">
+          ${s.count} ${s.count === 1 ? 'volta' : 'volte'}
+        </span>
+      </td>
+      <td><strong>${s.pct}%</strong></td>
+      <td>${s.lastDate}</td>
+      <td>${statusBadge}</td>
+    `;
+
+    carrelloLeaderTbody.appendChild(tr);
+  });
+}
+
+function setupCarrelloEventListeners() {
+  if (btnSaveDayCarrello) {
+    btnSaveDayCarrello.addEventListener("click", saveDayCarrello);
+  }
+
+  if (btnClearDayCarrello) {
+    btnClearDayCarrello.addEventListener("click", clearDayCarrelloSelection);
+  }
+
+  if (btnSortCarrelloLeast) {
+    btnSortCarrelloLeast.addEventListener("click", () => {
+      carrelloSortMode = "least";
+      btnSortCarrelloLeast.classList.add("active");
+      if (btnSortCarrelloMost) btnSortCarrelloMost.classList.remove("active");
+      renderCarrelloLeaderboard();
+    });
+  }
+
+  if (btnSortCarrelloMost) {
+    btnSortCarrelloMost.addEventListener("click", () => {
+      carrelloSortMode = "most";
+      btnSortCarrelloMost.classList.add("active");
+      if (btnSortCarrelloLeast) btnSortCarrelloLeast.classList.remove("active");
+      renderCarrelloLeaderboard();
+    });
+  }
 }
 
 // --- UTILITY ---
