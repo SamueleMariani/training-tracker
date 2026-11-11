@@ -1,0 +1,118 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========================================================
+    // TRAINING TRACKER - REGOLE DI PRODUZIONE FIRESTORE
+    // ========================================================
+
+    // --- FUNZIONI HELPER DI AUTORIZZAZIONE ---
+
+    // Verifica se l'utente ha effettuato l'accesso
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Verifica se l'utente è Samuele Mariani (Admin)
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.uid == '49ZMItWVONQWoesgqCiAkJLSziE3' ||
+        (request.auth.token.email != null && (
+          request.auth.token.email.lower() == 'samuele.mariani99@gmail.com' ||
+          request.auth.token.email.lower() == 'samuele@trainingtracker.it' ||
+          request.auth.token.email.lower() == 'admin@trainingtracker.it'
+        ))
+      );
+    }
+
+    // Verifica se l'utente è l'Allenatore (titolare della scheda coach)
+    function isCoach() {
+      return isAuthenticated() && (
+        (request.auth.token.email != null && request.auth.token.email.lower() == 'allenatore@atletica.it') ||
+        (exists(/databases/$(database)/documents/config/coach) &&
+         get(/databases/$(database)/documents/config/coach).data.uid == request.auth.uid)
+      );
+    }
+
+    function isCoachOrAdmin() {
+      return isAdmin() || isCoach();
+    }
+
+    // --- 1. CONFIGURAZIONE / STATO COACH (/config/coach) ---
+    match /config/coach {
+      allow read: if isAuthenticated();
+      // Permetti di reclamare il coach se non ancora reclamato, oppure aggiornamenti da parte del coach o dell'admin
+      allow create, update: if isAdmin() || (
+        isAuthenticated() && (
+          !exists(/databases/$(database)/documents/config/coach) ||
+          resource.data.claimed != true ||
+          resource.data.uid == request.auth.uid
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    // --- 2. ROSTER UTENTI (/users/{userId}) ---
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      // Creazione profilo utente proprio o da parte di admin
+      allow create: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isAdmin() ||
+        userId == 'allenatore' ||
+        userId == 'samuele_admin'
+      );
+      // Modifica: ciascuno il proprio profilo o admin.
+      // Gli utenti normali NON possono promuoversi ad admin o allenatore.
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (request.auth.uid == userId && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) ||
+          request.resource.data.role == resource.data.role ||
+          request.resource.data.role == 'atleta'
+        ))
+      );
+      allow delete: if isAdmin();
+    }
+
+    // --- 3. ALLENAMENTI (/workouts/{workoutId}) ---
+    match /workouts/{workoutId} {
+      allow read: if isAuthenticated();
+      // Creazione: ogni atleta può inserire per sé; coach o admin possono inserire per coach o admin
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid ||
+        (isCoachOrAdmin() && (
+          request.resource.data.userId == 'allenatore' ||
+          request.resource.data.userId == 'samuele_admin'
+        )) ||
+        isAdmin()
+      );
+      // Modifica ed eliminazione: proprietario della sessione, coach per i workout coach, o admin
+      allow update, delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin() ||
+        (isCoach() && (resource.data.userId == 'allenatore' || resource.data.userId == request.auth.uid))
+      );
+    }
+
+    // --- 4. VERDETTI E PAGELLE COACH (/pagelle/{date}) ---
+    match /pagelle/{date} {
+      allow read: if isAuthenticated();
+      // Solo Coach e Admin possono salvare, modificare o cancellare i verdetti
+      allow create, update, delete: if isCoachOrAdmin();
+    }
+
+    // --- 5. REGISTRO CARRELLO ATTREZZI (/carrello/{date}) ---
+    match /carrello/{date} {
+      allow read: if isAuthenticated();
+      // Qualsiasi utente loggato (atleta, coach o admin) può segnare chi ha messo via il carrello
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // --- REGOLA PREDEFINITA: Nega tutto il resto ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
