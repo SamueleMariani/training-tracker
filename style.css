@@ -58,9 +58,9 @@ body {
 }
 
 .header-container {
-  max-width: 1280px;
+  max-width: 100%;
   margin: 0 auto;
-  padding: 12px 20px;
+  padding: 12px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -128,8 +128,9 @@ body {
 }
 
 .athlete-bar-container {
-  max-width: 1280px;
+  max-width: 100%;
   margin: 0 auto;
+  padding: 0 4px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -257,7 +258,7 @@ body {
 }
 
 .tabs-container {
-  max-width: 1280px;
+  max-width: 100%;
   margin: 0 auto;
   display: flex;
   gap: 8px;
@@ -313,9 +314,9 @@ body {
 
 /* Main Layout */
 .main-container {
-  max-width: 1280px;
-  margin: 24px auto;
-  padding: 0 20px;
+  max-width: 100%;
+  margin: 20px auto;
+  padding: 0 24px;
 }
 
 .tab-pane {

@@ -436,35 +436,81 @@
               </div>
             </div>
 
-            <!-- Podio & Statistiche Carrello (Stile Sezione Pagelle) -->
-            <div class="pagelle-stats-grid carrello-stats-grid" style="margin-top: 14px; margin-bottom: 18px;">
-              <!-- 1. Il Più Generoso / Re del Carrello -->
-              <div class="pagelle-stat-card stat-best">
-                <span class="pagelle-stat-icon">👑</span>
-                <div class="pagelle-stat-info">
-                  <span class="pagelle-stat-label">Re del Carrello (Più Volte)</span>
-                  <h4 id="statCarrelloTop1">-</h4>
-                  <span class="pagelle-stat-count" id="statCarrelloTop1Count">0 volte</span>
+            <!-- Sezione Podio TOP 3 e WORST 3 Carrello -->
+            <div class="carrello-recap-container" style="margin-top: 16px; margin-bottom: 20px;">
+              <!-- TOP 3 (I Più Presenti) -->
+              <div style="margin-bottom: 16px;">
+                <h4 style="font-size: 0.95rem; font-weight: 700; color: #6ee7b7; display: flex; align-items: center; gap: 8px; margin: 0 0 10px 0;">
+                  🏆 TOP 3: I Più Presenti al Carrello
+                </h4>
+                <div class="pagelle-stats-grid carrello-stats-grid" style="margin-bottom: 0;">
+                  <!-- 1° Posto -->
+                  <div class="pagelle-stat-card stat-best">
+                    <span class="pagelle-stat-icon">🥇</span>
+                    <div class="pagelle-stat-info">
+                      <span class="pagelle-stat-label">1° Posto (Re del Carrello)</span>
+                      <h4 id="statCarrelloTop1">-</h4>
+                      <span class="pagelle-stat-count" id="statCarrelloTop1Count">0 volte</span>
+                    </div>
+                  </div>
+
+                  <!-- 2° Posto -->
+                  <div class="pagelle-stat-card" style="border-left: 4px solid #38bdf8; background: linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, var(--bg-card) 60%);">
+                    <span class="pagelle-stat-icon">🥈</span>
+                    <div class="pagelle-stat-info">
+                      <span class="pagelle-stat-label">2° Posto</span>
+                      <h4 id="statCarrelloTop2">-</h4>
+                      <span class="pagelle-stat-count" id="statCarrelloTop2Count">0 volte</span>
+                    </div>
+                  </div>
+
+                  <!-- 3° Posto -->
+                  <div class="pagelle-stat-card" style="border-left: 4px solid #f59e0b; background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, var(--bg-card) 60%);">
+                    <span class="pagelle-stat-icon">🥉</span>
+                    <div class="pagelle-stat-info">
+                      <span class="pagelle-stat-label">3° Posto</span>
+                      <h4 id="statCarrelloTop3">-</h4>
+                      <span class="pagelle-stat-count" id="statCarrelloTop3Count">0 volte</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <!-- 2. Secondo Aiutante -->
-              <div class="pagelle-stat-card stat-worst" style="border-left-color: #10b981; background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, var(--bg-card) 60%);">
-                <span class="pagelle-stat-icon">🥈</span>
-                <div class="pagelle-stat-info">
-                  <span class="pagelle-stat-label">Secondo Aiutante</span>
-                  <h4 id="statCarrelloTop2">-</h4>
-                  <span class="pagelle-stat-count" id="statCarrelloTop2Count">0 volte</span>
-                </div>
-              </div>
+              <!-- WORST 3 (I Fantasmi / Chi aiuta meno) -->
+              <div>
+                <h4 style="font-size: 0.95rem; font-weight: 700; color: #fca5a5; display: flex; align-items: center; gap: 8px; margin: 0 0 10px 0;">
+                  👻 WORST 3: I Meno Presenti (Chi non aiuta o aiuta poco)
+                </h4>
+                <div class="pagelle-stats-grid carrello-stats-grid" style="margin-bottom: 0;">
+                  <!-- Ultimo Posto (Peggior punteggio / 0 volte) -->
+                  <div class="pagelle-stat-card stat-rage">
+                    <span class="pagelle-stat-icon">🚨</span>
+                    <div class="pagelle-stat-info">
+                      <span class="pagelle-stat-label">Ultimo Posto (I Fantasmi)</span>
+                      <h4 id="statCarrelloWorst1">-</h4>
+                      <span class="pagelle-stat-count" id="statCarrelloWorst1Count">0 volte (MAI)</span>
+                    </div>
+                  </div>
 
-              <!-- 3. Il Fantasma (Chi non lo mette mai via) -->
-              <div class="pagelle-stat-card stat-rage">
-                <span class="pagelle-stat-icon">👻</span>
-                <div class="pagelle-stat-info">
-                  <span class="pagelle-stat-label">Fantasmi del Carrello (MAI)</span>
-                  <h4 id="statCarrelloNever">-</h4>
-                  <span class="pagelle-stat-count" id="statCarrelloNeverCount">0 atleti (MAI)</span>
+                  <!-- Penultimo Posto -->
+                  <div class="pagelle-stat-card" style="border-left: 4px solid #fb923c; background: linear-gradient(135deg, rgba(251, 146, 60, 0.08) 0%, var(--bg-card) 60%);">
+                    <span class="pagelle-stat-icon">⚠️</span>
+                    <div class="pagelle-stat-info">
+                      <span class="pagelle-stat-label">Penultimo Posto</span>
+                      <h4 id="statCarrelloWorst2">-</h4>
+                      <span class="pagelle-stat-count" id="statCarrelloWorst2Count">-</span>
+                    </div>
+                  </div>
+
+                  <!-- Terzultimo Posto -->
+                  <div class="pagelle-stat-card" style="border-left: 4px solid #facc15; background: linear-gradient(135deg, rgba(250, 204, 21, 0.08) 0%, var(--bg-card) 60%);">
+                    <span class="pagelle-stat-icon">📉</span>
+                    <div class="pagelle-stat-info">
+                      <span class="pagelle-stat-label">Terzultimo Posto</span>
+                      <h4 id="statCarrelloWorst3">-</h4>
+                      <span class="pagelle-stat-count" id="statCarrelloWorst3Count">-</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -486,8 +532,9 @@
                   <tr>
                     <th>Atleta</th>
                     <th>Ruolo</th>
-                    <th>Volte Messo Via</th>
-                    <th>% Giornate</th>
+                    <th>Volte Carrello</th>
+                    <th>Sedute Atleta</th>
+                    <th>Frequenza Aiuto (#volte / #sedute)</th>
                     <th>Ultima Volta</th>
                     <th>Stato Aiuto</th>
                   </tr>

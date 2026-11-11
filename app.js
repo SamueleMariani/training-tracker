@@ -364,8 +364,14 @@ const statCarrelloTop1 = document.getElementById("statCarrelloTop1");
 const statCarrelloTop1Count = document.getElementById("statCarrelloTop1Count");
 const statCarrelloTop2 = document.getElementById("statCarrelloTop2");
 const statCarrelloTop2Count = document.getElementById("statCarrelloTop2Count");
-const statCarrelloNever = document.getElementById("statCarrelloNever");
-const statCarrelloNeverCount = document.getElementById("statCarrelloNeverCount");
+const statCarrelloTop3 = document.getElementById("statCarrelloTop3");
+const statCarrelloTop3Count = document.getElementById("statCarrelloTop3Count");
+const statCarrelloWorst1 = document.getElementById("statCarrelloWorst1");
+const statCarrelloWorst1Count = document.getElementById("statCarrelloWorst1Count");
+const statCarrelloWorst2 = document.getElementById("statCarrelloWorst2");
+const statCarrelloWorst2Count = document.getElementById("statCarrelloWorst2Count");
+const statCarrelloWorst3 = document.getElementById("statCarrelloWorst3");
+const statCarrelloWorst3Count = document.getElementById("statCarrelloWorst3Count");
 
 // Backup & Restore Admin DOM Elements
 const adminBackupModal = document.getElementById("adminBackupModal");
@@ -2633,19 +2639,57 @@ function renderCoachPagelle() {
   if (statLeaderRage) statLeaderRage.textContent = leaderRage.name;
   if (statCountRage) statCountRage.textContent = `${leaderRage.count} ${leaderRage.count === 1 ? 'nomination' : 'nomination'}`;
 
-  // 4. Re del carrello per la scheda Hall of Fame in Pagelle
+  // 4. Re del carrello per la scheda Hall of Fame in Pagelle (frequenza equa #volte / #sedute)
   if (statLeaderCarrello && statCountCarrello) {
-    const counterCarrello = {};
-    Object.values(allCarrello).forEach(c => {
-      if (c && c.helperNames && Array.isArray(c.helperNames)) {
-        c.helperNames.forEach(name => {
-          if (name) counterCarrello[name] = (counterCarrello[name] || 0) + 1;
-        });
+    const athletes = getCarrelloAthletesList();
+    const recordedDays = Object.values(allCarrello).filter(c => c && c.helperIds && c.helperIds.length > 0);
+    
+    let topRate = -1;
+    let topNames = [];
+    let topDetail = "";
+
+    athletes.forEach(ath => {
+      const athleteWorkouts = allWorkouts.filter(w => {
+        if (ath.id === "allenatore" || (coachInfo && coachInfo.uid && ath.id === coachInfo.uid)) {
+          return w.userId === "allenatore" || (coachInfo && w.userId === coachInfo.uid) || (w.userEmail && w.userEmail.includes("allenatore"));
+        }
+        if (ath.id === "samuele_admin" || (registeredUsers.samuele_admin && registeredUsers.samuele_admin.uid && ath.id === registeredUsers.samuele_admin.uid)) {
+          const samUid = registeredUsers.samuele_admin && registeredUsers.samuele_admin.uid;
+          return w.userId === "samuele_admin" || (samUid && w.userId === samUid) || (w.userEmail && w.userEmail.toLowerCase().includes("samuele"));
+        }
+        return w.userId === ath.id || (ath.uid && w.userId === ath.uid);
+      });
+      const workoutDays = new Set(athleteWorkouts.map(w => w.date).filter(Boolean)).size;
+
+      let count = 0;
+      recordedDays.forEach(day => {
+        const matchId = day.helperIds.some(id => id === ath.id || (ath.uid && id === ath.uid));
+        const matchName = day.helperNames && day.helperNames.some(name => name.trim().toLowerCase() === ath.name.trim().toLowerCase());
+        if (matchId || matchName) count++;
+      });
+
+      if (count > 0) {
+        const rate = workoutDays > 0 ? (count / workoutDays) : 1.0;
+        const pctRate = Math.round(rate * 100);
+        if (pctRate > topRate) {
+          topRate = pctRate;
+          topNames = [ath.name];
+          topDetail = `${pctRate}% (${count}/${workoutDays || 1})`;
+        } else if (pctRate === topRate) {
+          topNames.push(ath.name);
+        }
       }
     });
-    const leaderCarrello = getLeader(counterCarrello);
-    statLeaderCarrello.textContent = leaderCarrello.name;
-    statCountCarrello.textContent = `${leaderCarrello.count} ${leaderCarrello.count === 1 ? 'volta' : 'volte'}`;
+
+    if (topRate > 0) {
+      const fullNames = topNames.join(", ");
+      statLeaderCarrello.textContent = fullNames.length > 20 ? fullNames.substring(0, 18) + "..." : fullNames;
+      statLeaderCarrello.title = fullNames;
+      statCountCarrello.textContent = topNames.length > 1 ? `Pari merito: ${topRate}%` : topDetail;
+    } else {
+      statLeaderCarrello.textContent = "-";
+      statCountCarrello.textContent = "0 volte";
+    }
   }
 
   // 2. Storico delle pagelle
@@ -2944,8 +2988,24 @@ function renderCarrelloLeaderboard() {
     carrelloTotalDaysBadge.textContent = `${totalDays} ${totalDays === 1 ? 'giornata registrata' : 'giornate registrate'}`;
   }
 
-  // Calcola statistiche per ogni atleta
+  // Calcola statistiche per ogni atleta con frequenza equa (#volte carrello / #giorni allenamento)
   const stats = athletes.map(ath => {
+    // 1. Calcola quanti giorni effettivi di allenamento ha fatto l'atleta
+    const athleteWorkouts = allWorkouts.filter(w => {
+      if (ath.id === "allenatore" || (coachInfo && coachInfo.uid && ath.id === coachInfo.uid)) {
+        return w.userId === "allenatore" || (coachInfo && w.userId === coachInfo.uid) || (w.userEmail && w.userEmail.includes("allenatore"));
+      }
+      if (ath.id === "samuele_admin" || (registeredUsers.samuele_admin && registeredUsers.samuele_admin.uid && ath.id === registeredUsers.samuele_admin.uid)) {
+        const samUid = registeredUsers.samuele_admin && registeredUsers.samuele_admin.uid;
+        return w.userId === "samuele_admin" || (samUid && w.userId === samUid) || (w.userEmail && w.userEmail.toLowerCase().includes("samuele"));
+      }
+      return w.userId === ath.id || (ath.uid && w.userId === ath.uid);
+    });
+
+    const workoutDatesSet = new Set(athleteWorkouts.map(w => w.date).filter(Boolean));
+    const workoutDays = workoutDatesSet.size;
+
+    // 2. Calcola quante volte ha messo via il carrello
     let count = 0;
     const dutyDates = [];
 
@@ -2960,90 +3020,169 @@ function renderCarrelloLeaderboard() {
 
     dutyDates.sort().reverse();
     const lastDate = dutyDates.length > 0 ? dutyDates[0] : "Mai";
-    const pct = totalDays > 0 ? Math.round((count / totalDays) * 100) : 0;
+
+    // 3. Frequenza equa: #volte / #giorni allenati
+    let rate = 0;
+    let pctRate = 0;
+    if (workoutDays > 0) {
+      rate = count / workoutDays;
+      pctRate = Math.round(rate * 100);
+    } else if (count > 0) {
+      rate = 1.0;
+      pctRate = 100;
+    }
 
     return {
       athlete: ath,
       count,
-      pct,
+      workoutDays,
+      rate,
+      pctRate,
       lastDate
     };
   });
 
-  // Ordina secondo la modalità attiva
+  // Ordina secondo la modalità attiva (in base al tasso equo)
   if (carrelloSortMode === "least") {
-    stats.sort((a, b) => a.count - b.count || a.athlete.name.localeCompare(b.athlete.name));
+    stats.sort((a, b) => {
+      // Chi ha un tasso di aiuto inferiore in cima
+      if (a.rate !== b.rate) return a.rate - b.rate;
+      // Tra chi ha lo stesso tasso basso (es. 0%), chi ha fatto più allenamenti ha saltato più volte il carrello!
+      if (b.workoutDays !== a.workoutDays) return b.workoutDays - a.workoutDays;
+      return a.athlete.name.localeCompare(b.athlete.name);
+    });
   } else {
-    stats.sort((a, b) => b.count - a.count || a.athlete.name.localeCompare(b.athlete.name));
+    // Modalità "Chi aiuta di più"
+    stats.sort((a, b) => {
+      if (b.rate !== a.rate) return b.rate - a.rate;
+      if (b.count !== a.count) return b.count - a.count;
+      return a.athlete.name.localeCompare(b.athlete.name);
+    });
   }
 
-  // --- Riepilogo Statistiche Carrello (Stile Sezione Pagelle) ---
-  const sortedByMost = [...stats].sort((a, b) => b.count - a.count || a.athlete.name.localeCompare(b.athlete.name));
-  const zeroHelpers = stats.filter(s => s.count === 0);
+  // --- Riepilogo Statistiche Carrello TOP 3 & WORST 3 (Dense Ranking per tasso di aiuto) ---
+  const getRankTiers = (statsList, desc = true) => {
+    const groups = new Map();
+    statsList.forEach(s => {
+      const key = s.pctRate;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(s);
+    });
+    const unique = Array.from(groups.keys()).sort((a, b) => desc ? b - a : a - b);
+    return unique.map(rateVal => {
+      const items = groups.get(rateVal);
+      return {
+        rate: rateVal,
+        athletes: items,
+        names: items.map(x => x.athlete.name)
+      };
+    });
+  };
 
-  // 1. Re del carrello (chi lo ha messo via più volte)
-  if (statCarrelloTop1 && statCarrelloTop1Count) {
-    if (sortedByMost.length > 0 && sortedByMost[0].count > 0) {
-      const maxCount = sortedByMost[0].count;
-      const topAthletes = sortedByMost.filter(s => s.count === maxCount);
-      if (topAthletes.length === 1) {
-        statCarrelloTop1.textContent = topAthletes[0].athlete.name;
-        statCarrelloTop1Count.textContent = `${maxCount} ${maxCount === 1 ? 'volta' : 'volte'} (${topAthletes[0].pct}%)`;
+  const topTiers = getRankTiers(stats.filter(s => s.count > 0), true);
+  const worstTiers = getRankTiers(stats, false);
+
+  const formatTopCard = (titleEl, countEl, tier, defaultTitle, defaultCount) => {
+    if (!titleEl || !countEl) return;
+    if (!tier) {
+      titleEl.textContent = defaultTitle;
+      titleEl.title = "";
+      countEl.textContent = defaultCount;
+      return;
+    }
+    const fullNames = tier.names.join(", ");
+    titleEl.textContent = fullNames.length > 26 ? fullNames.substring(0, 23) + "..." : fullNames;
+    titleEl.title = fullNames;
+    if (tier.athletes.length === 1) {
+      const a = tier.athletes[0];
+      countEl.textContent = `${tier.rate}% (${a.count} su ${a.workoutDays} ${a.workoutDays === 1 ? 'seduta' : 'sedute'})`;
+    } else {
+      const details = tier.athletes.map(a => `${a.athlete.name}: ${a.count}/${a.workoutDays}`).join(", ");
+      countEl.textContent = `Pari merito ${tier.rate}% (${tier.athletes.length} atleti)`;
+      titleEl.title = `${fullNames}\n${details}`;
+    }
+  };
+
+  const formatWorstCard = (titleEl, countEl, tier, defaultTitle, defaultCount) => {
+    if (!titleEl || !countEl) return;
+    if (!tier || totalDays === 0) {
+      titleEl.textContent = defaultTitle;
+      titleEl.title = "";
+      countEl.textContent = defaultCount;
+      return;
+    }
+    const fullNames = tier.names.join(", ");
+    titleEl.textContent = fullNames.length > 26 ? fullNames.substring(0, 23) + "..." : fullNames;
+    titleEl.title = fullNames;
+    if (tier.rate === 0) {
+      const details = tier.athletes.map(a => `${a.athlete.name} (0/${a.workoutDays})`).join(", ");
+      titleEl.title = `${fullNames}\n${details}`;
+      countEl.textContent = `${tier.athletes.length} ${tier.athletes.length === 1 ? 'atleta a quota 0% (MAI)' : 'atleti a quota 0% (MAI)'}`;
+    } else {
+      if (tier.athletes.length === 1) {
+        const a = tier.athletes[0];
+        countEl.textContent = `${tier.rate}% (${a.count} su ${a.workoutDays} sedute)`;
       } else {
-        const names = topAthletes.map(s => s.athlete.name).join(", ");
-        statCarrelloTop1.textContent = names.length > 22 ? names.substring(0, 20) + "..." : names;
-        statCarrelloTop1.title = names;
-        statCarrelloTop1Count.textContent = `Pari merito: ${maxCount} volte (${topAthletes[0].pct}%)`;
+        countEl.textContent = `Pari merito: ${tier.rate}% (${tier.athletes.length} atleti)`;
       }
-    } else {
-      statCarrelloTop1.textContent = "Nessuno ancora";
-      statCarrelloTop1Count.textContent = "0 volte";
     }
+  };
+
+  // TOP 1, 2, 3
+  formatTopCard(statCarrelloTop1, statCarrelloTop1Count, topTiers[0], totalDays === 0 ? "Nessuna seduta" : "Nessun aiuto", "0%");
+
+  if (topTiers.length > 1) {
+    formatTopCard(statCarrelloTop2, statCarrelloTop2Count, topTiers[1], "-", "0%");
+  } else if (topTiers.length === 1 && topTiers[0].athletes.length > 1) {
+    if (statCarrelloTop2 && statCarrelloTop2Count) {
+      statCarrelloTop2.textContent = "Condiviso al 1° posto";
+      statCarrelloTop2.title = topTiers[0].names.join(", ");
+      statCarrelloTop2Count.textContent = `Tutti al ${topTiers[0].rate}%`;
+    }
+  } else {
+    formatTopCard(statCarrelloTop2, statCarrelloTop2Count, null, "-", "In attesa di dati");
   }
 
-  // 2. Secondo Aiutante
-  if (statCarrelloTop2 && statCarrelloTop2Count) {
-    const maxCount = sortedByMost.length > 0 ? sortedByMost[0].count : 0;
-    const secondCandidates = sortedByMost.filter(s => s.count < maxCount && s.count > 0);
-    if (secondCandidates.length > 0) {
-      const secondMax = secondCandidates[0].count;
-      const secondAthletes = secondCandidates.filter(s => s.count === secondMax);
-      if (secondAthletes.length === 1) {
-        statCarrelloTop2.textContent = secondAthletes[0].athlete.name;
-        statCarrelloTop2Count.textContent = `${secondMax} ${secondMax === 1 ? 'volta' : 'volte'} (${secondAthletes[0].pct}%)`;
-      } else {
-        const names = secondAthletes.map(s => s.athlete.name).join(", ");
-        statCarrelloTop2.textContent = names.length > 22 ? names.substring(0, 20) + "..." : names;
-        statCarrelloTop2.title = names;
-        statCarrelloTop2Count.textContent = `Pari merito: ${secondMax} volte (${secondAthletes[0].pct}%)`;
-      }
-    } else if (sortedByMost.length > 1 && sortedByMost[0].count > 0 && sortedByMost[1].count === maxCount) {
-      statCarrelloTop2.textContent = "Pari merito al 1° posto";
-      statCarrelloTop2Count.textContent = `${maxCount} volte`;
-    } else {
-      statCarrelloTop2.textContent = "-";
-      statCarrelloTop2Count.textContent = "0 volte";
+  if (topTiers.length > 2) {
+    formatTopCard(statCarrelloTop3, statCarrelloTop3Count, topTiers[2], "-", "0%");
+  } else if (topTiers.length >= 1 && (topTiers[0].athletes.length + (topTiers[1] ? topTiers[1].athletes.length : 0)) >= 3) {
+    if (statCarrelloTop3 && statCarrelloTop3Count) {
+      statCarrelloTop3.textContent = "Podio condiviso";
+      statCarrelloTop3.title = "Più atleti a pari merito nei primi posti";
+      statCarrelloTop3Count.textContent = "Pari merito nei primi posti";
     }
+  } else {
+    formatTopCard(statCarrelloTop3, statCarrelloTop3Count, null, "-", "In attesa di dati");
   }
 
-  // 3. I Fantasmi (Chi non lo mette mai via)
-  if (statCarrelloNever && statCarrelloNeverCount) {
-    if (zeroHelpers.length > 0 && totalDays > 0) {
-      const names = zeroHelpers.map(s => s.athlete.name).join(", ");
-      statCarrelloNever.textContent = names.length > 24 ? names.substring(0, 22) + "..." : names;
-      statCarrelloNever.title = names;
-      statCarrelloNeverCount.textContent = `${zeroHelpers.length} ${zeroHelpers.length === 1 ? 'atleta (MAI)' : 'atleti (MAI)'}`;
-    } else if (totalDays === 0) {
-      statCarrelloNever.textContent = "Nessuna data";
-      statCarrelloNeverCount.textContent = "0 sedute registrate";
-    } else {
-      statCarrelloNever.textContent = "Nessuno! 🎉";
-      statCarrelloNeverCount.textContent = "Tutti hanno aiutato";
+  // WORST 1, 2, 3
+  formatWorstCard(statCarrelloWorst1, statCarrelloWorst1Count, worstTiers[0], "Nessuna data registrata", "0 sedute");
+
+  if (worstTiers.length > 1 && totalDays > 0) {
+    formatWorstCard(statCarrelloWorst2, statCarrelloWorst2Count, worstTiers[1], "-", "In attesa di dati");
+  } else if (worstTiers.length === 1 && totalDays > 0) {
+    if (statCarrelloWorst2 && statCarrelloWorst2Count) {
+      statCarrelloWorst2.textContent = "Tutti a pari merito";
+      statCarrelloWorst2.title = "";
+      statCarrelloWorst2Count.textContent = `${worstTiers[0].rate}%`;
     }
+  } else {
+    formatWorstCard(statCarrelloWorst2, statCarrelloWorst2Count, null, "-", "In attesa di dati");
+  }
+
+  if (worstTiers.length > 2 && totalDays > 0) {
+    formatWorstCard(statCarrelloWorst3, statCarrelloWorst3Count, worstTiers[2], "-", "In attesa di dati");
+  } else if (worstTiers.length <= 2 && totalDays > 0) {
+    if (statCarrelloWorst3 && statCarrelloWorst3Count) {
+      statCarrelloWorst3.textContent = "-";
+      statCarrelloWorst3Count.textContent = "Nessun altro livello";
+    }
+  } else {
+    formatWorstCard(statCarrelloWorst3, statCarrelloWorst3Count, null, "-", "In attesa di dati");
   }
 
   // Sezione allerta "Chi non lo ha MAI messo via"
-  const neverHelpers = stats.filter(s => s.count === 0);
+  const neverHelpers = stats.filter(s => s.count === 0 && s.workoutDays > 0);
   if (carrelloAlertBox && carrelloNeverAthletesList) {
     if (neverHelpers.length > 0 && totalDays > 0) {
       carrelloAlertBox.style.display = "block";
@@ -3053,7 +3192,7 @@ function renderCarrelloLeaderboard() {
         span.className = "badge badge-danger";
         span.style.padding = "4px 8px";
         span.style.fontSize = "0.82rem";
-        span.textContent = `❌ ${s.athlete.name} (0 volte)`;
+        span.textContent = `❌ ${s.athlete.name} (0 su ${s.workoutDays} sedute)`;
         carrelloNeverAthletesList.appendChild(span);
       });
     } else {
@@ -3064,7 +3203,7 @@ function renderCarrelloLeaderboard() {
   if (stats.length === 0) {
     carrelloLeaderTbody.innerHTML = `
       <tr>
-        <td colspan="6" class="text-dim" style="text-align: center; padding: 20px;">Nessun atleta presente nel roster.</td>
+        <td colspan="7" class="text-dim" style="text-align: center; padding: 20px;">Nessun atleta presente nel roster.</td>
       </tr>
     `;
     return;
@@ -3074,15 +3213,17 @@ function renderCarrelloLeaderboard() {
     const tr = document.createElement("tr");
 
     let statusBadge = "";
-    if (s.count === 0) {
-      statusBadge = `<span class="badge badge-danger">🔴 MAI (0 volte)</span>`;
-    } else if (s.count <= 2) {
-      statusBadge = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4);">🟡 Occasionale</span>`;
+    if (s.rate === 0) {
+      statusBadge = `<span class="badge badge-danger">🔴 MAI (0%)</span>`;
+    } else if (s.rate < 0.35) {
+      statusBadge = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4);">🟡 Basso (${s.pctRate}%)</span>`;
+    } else if (s.rate < 0.70) {
+      statusBadge = `<span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);">🔵 Buono (${s.pctRate}%)</span>`;
     } else {
-      statusBadge = `<span class="badge badge-success">🟢 Pilastro (${s.count})</span>`;
+      statusBadge = `<span class="badge badge-success">🟢 Pilastro (${s.pctRate}%)</span>`;
     }
 
-    const countColor = s.count === 0 ? "#ef4444" : s.count >= 3 ? "#10b981" : "#f59e0b";
+    const countColor = s.rate === 0 ? "#ef4444" : s.rate >= 0.5 ? "#10b981" : "#f59e0b";
 
     tr.innerHTML = `
       <td>
@@ -3093,11 +3234,21 @@ function renderCarrelloLeaderboard() {
       </td>
       <td><span class="role-badge ${s.athlete.role || 'atleta'}">${s.athlete.role || 'atleta'}</span></td>
       <td>
-        <span class="font-mono" style="font-size: 1.1rem; font-weight: 700; color: ${countColor};">
+        <span class="font-mono" style="font-size: 1.05rem; font-weight: 700;">
           ${s.count} ${s.count === 1 ? 'volta' : 'volte'}
         </span>
       </td>
-      <td><strong>${s.pct}%</strong></td>
+      <td>
+        <span class="font-mono text-dim">
+          ${s.workoutDays} ${s.workoutDays === 1 ? 'giorno' : 'giorni'}
+        </span>
+      </td>
+      <td>
+        <span class="font-mono" style="font-size: 1.1rem; font-weight: 800; color: ${countColor};">
+          ${s.pctRate}%
+        </span>
+        <span class="text-xs text-dim">(${s.count}/${s.workoutDays})</span>
+      </td>
       <td>${s.lastDate}</td>
       <td>${statusBadge}</td>
     `;
