@@ -368,9 +368,18 @@
               <h2>Roster Squadra & Riepilogo</h2>
               <p class="text-dim text-sm">Monitoraggio delle sedute svolte dagli atleti registrati.</p>
             </div>
-            <button id="btnSyncExcelData" class="btn btn-secondary btn-sm" title="Ripristina o sincronizza gli allenamenti originali dell'allenatore">
-              🔄 Risincronizza Dati Excel
-            </button>
+            <div class="team-header-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button id="btnSyncExcelData" class="btn btn-secondary btn-sm" title="Ripristina o sincronizza gli allenamenti originali dell'allenatore">
+                🔄 Risincronizza Dati Excel
+              </button>
+              <button id="btnManualBackup" class="btn btn-secondary btn-sm" style="display: none;" title="Scarica un file JSON completo di backup con tutti i dati (Admin)">
+                💾 Backup JSON
+              </button>
+              <button id="btnManualRestore" class="btn btn-secondary btn-sm" style="display: none;" title="Ripristina il database da un file JSON di backup precedente (Admin)">
+                📥 Ripristina Backup
+              </button>
+              <input type="file" id="inputRestoreBackup" accept=".json,application/json" style="display: none;" />
+            </div>
           </div>
 
           <!-- Roster Atleti Card Grid -->
@@ -733,6 +742,44 @@
         <button type="button" id="btnDayModalAddWorkout" class="btn btn-primary btn-sm">
           ➕ Aggiungi Sessione a questo Giorno
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODALE: BACKUP SETTIMANALE AMMINISTRATORE -->
+  <!-- ========================================== -->
+  <div id="adminBackupModal" class="modal-overlay hidden">
+    <div class="modal-content auth-modal-box" style="max-width: 480px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.4rem;">🛡️</span>
+          <h3 style="margin: 0;">Backup Settimanale Database</h3>
+        </div>
+        <button type="button" id="btnCloseAdminBackupModal" class="btn-modal-close">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px;">
+        <div class="backup-info-card" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+          <p style="margin: 0 0 10px 0; font-size: 0.92rem; color: #fff; line-height: 1.4;">
+            Ciao <strong>Samuele</strong>! È passata più di una settimana dall'ultimo backup scaricato.
+          </p>
+          <p class="text-dim text-xs" style="margin: 0; line-height: 1.4;">
+            Per proteggere tutti gli allenamenti della squadra senza costi su Firestore gratuito, scarica una copia JSON completa con tutte le sessioni, gli atleti, le pagelle e il carrello.
+          </p>
+          <div id="backupLastDownloadedNotice" class="text-xs" style="margin-top: 10px; color: #fcd34d;">
+            ⏳ Ultimo backup: Mai registrato
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <button type="button" id="btnConfirmDownloadBackup" class="btn btn-primary btn-block" style="padding: 12px; font-weight: 700;">
+            📥 Scarica Backup Completo (JSON)
+          </button>
+          <button type="button" id="btnDismissAdminBackup" class="btn btn-secondary btn-block">
+            Più tardi (Ricordamelo al prossimo accesso)
+          </button>
+        </div>
       </div>
     </div>
   </div>

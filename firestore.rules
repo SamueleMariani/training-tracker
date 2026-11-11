@@ -39,12 +39,12 @@ service cloud.firestore {
       return isAdmin() || isCoach();
     }
 
-    // --- 1. CONFIGURAZIONE / STATO COACH (/config/coach) ---
-    match /config/coach {
+    // --- 1. CONFIGURAZIONE / STATO COACH & BACKUP (/config/{docId}) ---
+    match /config/{docId} {
       allow read: if isAuthenticated();
       // Permetti di reclamare il coach se non ancora reclamato, oppure aggiornamenti da parte del coach o dell'admin
       allow create, update: if isAdmin() || (
-        isAuthenticated() && (
+        docId == 'coach' && isAuthenticated() && (
           !exists(/databases/$(database)/documents/config/coach) ||
           resource.data.claimed != true ||
           resource.data.uid == request.auth.uid

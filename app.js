@@ -359,6 +359,16 @@ const carrelloNeverAthletesList = document.getElementById("carrelloNeverAthletes
 const carrelloLeaderTable = document.getElementById("carrelloLeaderTable");
 const carrelloLeaderTbody = document.getElementById("carrelloLeaderTbody");
 
+// Backup & Restore Admin DOM Elements
+const adminBackupModal = document.getElementById("adminBackupModal");
+const btnCloseAdminBackupModal = document.getElementById("btnCloseAdminBackupModal");
+const btnDismissAdminBackup = document.getElementById("btnDismissAdminBackup");
+const btnConfirmDownloadBackup = document.getElementById("btnConfirmDownloadBackup");
+const backupLastDownloadedNotice = document.getElementById("backupLastDownloadedNotice");
+const btnManualBackup = document.getElementById("btnManualBackup");
+const btnManualRestore = document.getElementById("btnManualRestore");
+const inputRestoreBackup = document.getElementById("inputRestoreBackup");
+
 // Toast
 const toast = document.getElementById("toast");
 
@@ -374,6 +384,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupEventListeners();
   setupPagelleEventListeners();
   setupCarrelloEventListeners();
+  setupAdminBackupEventListeners();
   updateAthleteDropdowns();
   updateAthleteSwitcherUI();
   updateCoachStatusUI();
@@ -873,6 +884,18 @@ function setupAuthListener() {
       refreshActiveViews();
       updateCoachStatusUI();
       showToast(`Benvenuto, ${user.displayName || user.email}!`, "success");
+
+      // Visibilità pulsanti backup Admin e controllo settimanale per Samuele
+      if (isSamuele) {
+        if (btnManualBackup) btnManualBackup.style.display = "inline-flex";
+        if (btnManualRestore) btnManualRestore.style.display = "inline-flex";
+        setTimeout(() => {
+          checkAndPromptAdminBackup();
+        }, 1200);
+      } else {
+        if (btnManualBackup) btnManualBackup.style.display = "none";
+        if (btnManualRestore) btnManualRestore.style.display = "none";
+      }
     } else {
       // Non autenticato: nessun dato visibile, mostra solo la schermata di login pulita
       appRole = "ospite";
@@ -880,6 +903,8 @@ function setupAuthListener() {
       loginGate.classList.remove("hidden");
       authenticatedApp.classList.add("hidden");
       athleteSwitcherBar.classList.add("hidden");
+      if (btnManualBackup) btnManualBackup.style.display = "none";
+      if (btnManualRestore) btnManualRestore.style.display = "none";
       updateCoachTabVisibility();
 
       renderAuthUI(null);
@@ -3017,6 +3042,304 @@ function setupCarrelloEventListeners() {
       btnSortCarrelloMost.classList.add("active");
       if (btnSortCarrelloLeast) btnSortCarrelloLeast.classList.remove("active");
       renderCarrelloLeaderboard();
+    });
+  }
+}
+
+// ==========================================
+// --- 22. SISTEMA BACKUP & RIPRISTINO DATI ---
+// ==========================================
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function checkAndPromptAdminBackup() {
+  if (appRole !== "admin") return;
+
+  let lastBackupTimestamp = 0;
+  const localTime = parseInt(localStorage.getItem("tt_last_backup_download") || "0", 10);
+  if (!isNaN(localTime) && localTime > 0) {
+    lastBackupTimestamp = localTime;
+  }
+
+  try {
+    const backupSnap = await getDoc(doc(db, "config", "backup"));
+    if (backupSnap.exists()) {
+      const remoteData = backupSnap.data();
+      const remoteTime = remoteData.timestamp || 0;
+      if (remoteTime > lastBackupTimestamp) {
+        lastBackupTimestamp = remoteTime;
+        localStorage.setItem("tt_last_backup_download", remoteTime.toString());
+      }
+    }
+  } catch (err) {
+    console.warn("Verifica backup remoto:", err);
+  }
+
+  const now = Date.now();
+  const timeSinceLast = now - lastBackupTimestamp;
+
+  if (lastBackupTimestamp === 0 || timeSinceLast >= SEVEN_DAYS_MS) {
+    if (backupLastDownloadedNotice) {
+      if (lastBackupTimestamp === 0) {
+        backupLastDownloadedNotice.textContent = "⏳ Nessun backup ancora scaricato su questo dispositivo.";
+      } else {
+        const daysAgo = Math.floor(timeSinceLast / (24 * 60 * 60 * 1000));
+        const dateStr = new Date(lastBackupTimestamp).toLocaleDateString("it-IT");
+        backupLastDownloadedNotice.textContent = `⏳ Ultimo backup scaricato: ${dateStr} (${daysAgo} giorni fa).`;
+      }
+    }
+    if (adminBackupModal) {
+      adminBackupModal.classList.remove("hidden");
+    }
+  }
+}
+
+async function downloadCompleteBackup(isManual = false) {
+  if (appRole !== "admin") {
+    showToast("Solo l'Admin può eseguire il backup completo del database!", "error");
+    return;
+  }
+
+  if (btnConfirmDownloadBackup) {
+    btnConfirmDownloadBackup.textContent = "⏳ Generazione backup in corso...";
+    btnConfirmDownloadBackup.disabled = true;
+  }
+  if (isManual && btnManualBackup) {
+    btnManualBackup.textContent = "⏳ Generazione...";
+    btnManualBackup.disabled = true;
+  }
+
+  showToast("Generazione backup JSON completo in corso...", "info");
+
+  try {
+    // Recupera in parallelo tutte le collezioni e configurazioni
+    const [workoutsSnap, usersSnap, pagelleSnap, carrelloSnap, coachSnap] = await Promise.all([
+      getDocs(collection(db, "workouts")),
+      getDocs(collection(db, "users")),
+      getDocs(collection(db, "pagelle")),
+      getDocs(collection(db, "carrello")),
+      getDoc(doc(db, "config", "coach"))
+    ]);
+
+    const workoutsList = [];
+    workoutsSnap.forEach(d => workoutsList.push({ id: d.id, ...d.data() }));
+
+    const usersList = [];
+    usersSnap.forEach(d => usersList.push({ id: d.id, ...d.data() }));
+
+    const pagelleList = [];
+    pagelleSnap.forEach(d => pagelleList.push({ id: d.id, ...d.data() }));
+
+    const carrelloList = [];
+    carrelloSnap.forEach(d => carrelloList.push({ id: d.id, ...d.data() }));
+
+    const coachData = coachSnap.exists() ? coachSnap.data() : null;
+
+    const now = new Date();
+    const dateIso = now.toISOString();
+    const dateFile = dateIso.substring(0, 10) + "_" + String(now.getHours()).padStart(2, "0") + String(now.getMinutes()).padStart(2, "0");
+
+    const backupPayload = {
+      meta: {
+        appName: "Training Tracker - Atletica & Velocità",
+        version: "1.0",
+        exportedAt: dateIso,
+        exportedBy: currentUser ? (currentUser.displayName || currentUser.email) : "Samuele Mariani (Admin)",
+        exportedByUid: currentUser ? currentUser.uid : "admin",
+        counts: {
+          workouts: workoutsList.length,
+          users: usersList.length,
+          pagelle: pagelleList.length,
+          carrello: carrelloList.length,
+          hasCoachConfig: !!coachData
+        }
+      },
+      data: {
+        workouts: workoutsList,
+        users: usersList,
+        pagelle: pagelleList,
+        carrello: carrelloList,
+        config: {
+          coach: coachData
+        }
+      }
+    };
+
+    // Creazione del file blob e trigger automatico del download nel browser
+    const jsonString = JSON.stringify(backupPayload, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `training_tracker_backup_${dateFile}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    // Aggiornamento timestamp del backup sia locale che remoto
+    const currentTimestamp = Date.now();
+    localStorage.setItem("tt_last_backup_download", currentTimestamp.toString());
+
+    try {
+      await setDoc(doc(db, "config", "backup"), {
+        timestamp: currentTimestamp,
+        exportedAt: dateIso,
+        exportedBy: currentUser.email || "Samuele Admin",
+        counts: backupPayload.meta.counts
+      });
+    } catch (e) {
+      console.warn("Salvataggio timestamp su /config/backup:", e);
+    }
+
+    if (adminBackupModal) {
+      adminBackupModal.classList.add("hidden");
+    }
+
+    showToast(`✅ Backup completo scaricato con successo (${workoutsList.length} sessioni)! Prossimo promemoria tra 7 giorni.`, "success");
+  } catch (err) {
+    console.error("Errore durante il backup:", err);
+    showToast("Errore durante la creazione del backup: " + err.message, "error");
+  } finally {
+    if (btnConfirmDownloadBackup) {
+      btnConfirmDownloadBackup.textContent = "📥 Scarica Backup Completo (JSON)";
+      btnConfirmDownloadBackup.disabled = false;
+    }
+    if (btnManualBackup) {
+      btnManualBackup.textContent = "💾 Backup JSON";
+      btnManualBackup.disabled = false;
+    }
+  }
+}
+
+async function restoreBackupFromJson(backupData) {
+  if (!currentUser) {
+    showToast("Devi aver effettuato l'accesso come Admin per ripristinare!", "error");
+    return false;
+  }
+  if (appRole !== "admin") {
+    showToast("Solo Samuele Mariani (Admin) può ripristinare il database!", "error");
+    return false;
+  }
+
+  if (!backupData || !backupData.data) {
+    showToast("Formato file di backup non valido (manca la sezione 'data')!", "error");
+    return false;
+  }
+
+  const { workouts, users, pagelle, carrello, config } = backupData.data;
+
+  const wCount = workouts ? workouts.length : 0;
+  const uCount = users ? users.length : 0;
+  const pCount = pagelle ? pagelle.length : 0;
+  const cCount = carrello ? carrello.length : 0;
+  const exportDate = backupData.meta && backupData.meta.exportedAt ? new Date(backupData.meta.exportedAt).toLocaleString("it-IT") : "Data sconosciuta";
+
+  const confirmMsg = `⚠️ ATTENZIONE: Stai per sovrascrivere/ripristinare il database dal backup del ${exportDate}.\n\nDati contenuti nel file:\n- ${wCount} Allenamenti\n- ${uCount} Utenti\n- ${pCount} Verdetti Coach\n- ${cCount} Date Carrello\n\nVuoi procedere con il ripristino di tutti i dati?`;
+  if (!confirm(confirmMsg)) {
+    showToast("Ripristino annullato.", "info");
+    return false;
+  }
+
+  showToast("⏳ Ripristino dati in corso su Firestore...", "info");
+
+  try {
+    // 1. Ripristino Config Coach
+    if (config && config.coach) {
+      await setDoc(doc(db, "config", "coach"), config.coach);
+    }
+
+    // 2. Ripristino Utenti
+    if (users && Array.isArray(users)) {
+      for (const u of users) {
+        const { id, ...uData } = u;
+        if (id) await setDoc(doc(db, "users", id), uData);
+      }
+    }
+
+    // 3. Ripristino Allenamenti
+    if (workouts && Array.isArray(workouts)) {
+      for (const w of workouts) {
+        const { id, ...wData } = w;
+        if (id) await setDoc(doc(db, "workouts", id), wData);
+      }
+    }
+
+    // 4. Ripristino Pagelle
+    if (pagelle && Array.isArray(pagelle)) {
+      for (const p of pagelle) {
+        const { id, ...pData } = p;
+        if (id) await setDoc(doc(db, "pagelle", id), pData);
+      }
+    }
+
+    // 5. Ripristino Carrello
+    if (carrello && Array.isArray(carrello)) {
+      for (const c of carrello) {
+        const { id, ...cData } = c;
+        if (id) await setDoc(doc(db, "carrello", id), cData);
+      }
+    }
+
+    showToast(`✅ Database ripristinato con successo! (${wCount} allenamenti caricati)`, "success");
+    refreshActiveViews();
+    return true;
+  } catch (err) {
+    console.error("Errore durante il ripristino:", err);
+    showToast("Errore durante il ripristino: " + err.message, "error");
+    return false;
+  }
+}
+
+// Espone la funzione di ripristino globale per l'uso da DevTools / script console
+window.restoreDatabaseBackup = restoreBackupFromJson;
+
+function setupAdminBackupEventListeners() {
+  if (btnCloseAdminBackupModal) {
+    btnCloseAdminBackupModal.addEventListener("click", () => {
+      adminBackupModal.classList.add("hidden");
+    });
+  }
+
+  if (btnDismissAdminBackup) {
+    btnDismissAdminBackup.addEventListener("click", () => {
+      adminBackupModal.classList.add("hidden");
+    });
+  }
+
+  if (btnConfirmDownloadBackup) {
+    btnConfirmDownloadBackup.addEventListener("click", () => {
+      downloadCompleteBackup(false);
+    });
+  }
+
+  if (btnManualBackup) {
+    btnManualBackup.addEventListener("click", () => {
+      downloadCompleteBackup(true);
+    });
+  }
+
+  if (btnManualRestore && inputRestoreBackup) {
+    btnManualRestore.addEventListener("click", () => {
+      inputRestoreBackup.click();
+    });
+
+    inputRestoreBackup.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const parsed = JSON.parse(evt.target.result);
+          await restoreBackupFromJson(parsed);
+        } catch (err) {
+          showToast("Impossibile leggere il file: non è un JSON valido!", "error");
+        } finally {
+          inputRestoreBackup.value = "";
+        }
+      };
+      reader.readAsText(file, "utf-8");
     });
   }
 }
